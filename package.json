@@ -1,0 +1,16 @@
+{
+  "name": "creative-service",
+  "version": "1.0.0",
+  "description": "Meta Ads API Integration Service",
+  "scripts": {
+    "prepare": "husky install"
+  },
+  "keywords": ["meta-ads", "facebook-ads", "golang"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@commitlint/cli": "^18.4.3",
+    "@commitlint/config-conventional": "^18.4.3",
+    "husky": "^8.0.3"
+  }
+}
