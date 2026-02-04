@@ -7,16 +7,14 @@ import (
 	"os"
 	"time"
 
-	"creative-service/internal/blob"
 	"creative-service/internal/config"
 	"creative-service/internal/httpapi"
-	"creative-service/internal/queue"
+	"creative-service/internal/s3"
 	"creative-service/internal/secrets"
 	"creative-service/internal/service"
 	"creative-service/internal/storage"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -29,11 +27,16 @@ func main() {
 	defer pool.Close()
 
 	st := storage.New(pool)
-	blobStore := blob.NewLocalFS(cfg.BlobDir)
-
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
-	if err := rdb.Ping(ctx).Err(); err != nil { log.Fatal("redis ping: ", err) }
-	q := queue.New(rdb, cfg.RedisQueue)
+	s3Client, err := s3.New(ctx, s3.Config{
+		BucketName:      cfg.S3BucketName,
+		Region:          cfg.S3Region,
+		AccessKeyID:     cfg.S3AccessKeyID,
+		SecretAccessKey: cfg.S3SecretAccessKey,
+	})
+	if err != nil {
+		log.Fatal("failed to create S3 client: ", err)
+	}
+	log.Println("S3 client initialized for bucket:", cfg.S3BucketName)
 
 	sem := service.NewSemaphore(cfg.MaxConcurrency)
 	tokens := secrets.EnvResolver{}
@@ -41,12 +44,12 @@ func main() {
 	creativeSync := &service.CreativeSyncService{
 		Store: st,
 		Tokens: tokens,
+		S3: s3Client,
 		BaseURL: cfg.BaseURL,
 		APIVersion: cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,
 		Sem: sem,
 	}
-	videoJobs := &service.VideoJobService{Store: st, Blob: blobStore, Queue: q}
 
 	campaigns := &service.CampaignService{
 		Store: st,
@@ -77,7 +80,6 @@ func main() {
 
 	h := &httpapi.Handler{
 		CreativeSync: creativeSync,
-		VideoJobs: videoJobs,
 		Store: st,
 		Campaigns: campaigns,
 		AdSets: adsets,
