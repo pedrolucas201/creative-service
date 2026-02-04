@@ -13,10 +13,10 @@ type Config struct {
 
 	DatabaseURL string
 
-	RedisAddr  string
-	RedisQueue string
-
-	BlobDir string
+	S3BucketName string
+	S3Region     string
+	S3AccessKeyID  string
+	S3SecretAccessKey  string
 
 	MaxConcurrency int
 }
@@ -30,10 +30,10 @@ func Load() Config {
 
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 
-		RedisAddr:  getenv("REDIS_ADDR", "localhost:6379"),
-		RedisQueue: getenv("REDIS_QUEUE", "creative_jobs"),
-
-		BlobDir: getenv("BLOB_DIR", "/tmp/blob"),
+		S3BucketName: os.Getenv("S3_BUCKET"),
+		S3Region:     getenv("S3_REGION", "us-east-1"),
+		S3AccessKeyID:  os.Getenv("AWS_ACCESS_KEY_ID"),
+		S3SecretAccessKey:  os.Getenv("AWS_SECRET_ACCESS_KEY"),
 
 		MaxConcurrency: atoiDefault(getenv("MAX_CONCURRENCY", "3"), 3),
 	}
