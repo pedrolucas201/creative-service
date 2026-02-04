@@ -13,7 +13,6 @@ import (
 
 type Handler struct {
 	CreativeSync *service.CreativeSyncService
-	VideoJobs    *service.VideoJobService
 	Store        *storage.Store
 	Campaigns    *service.CampaignService
 	AdSets       *service.AdSetService
@@ -50,38 +49,51 @@ func (h *Handler) CreateImageCreative(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
-func (h *Handler) CreateVideoCreativeJob(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(1024 << 20); err != nil {
 		writeErr(w, 400, "invalid_multipart"); return
 	}
+
 	clientID := r.FormValue("client_id")
-	if clientID == "" { writeErr(w, 400, "missing_client_id"); return }
+	if clientID == "" {
+		writeErr(w, 400, "missing_client_id"); 
+		return
+	}
+	
+	videoFile, videoHeader, err := r.FormFile("video")
+	if err != nil { 
+		writeErr(w, 400, "missing_video"); 
+		return 
+	}
+	defer videoFile.Close()
+	videoBytes, _ := io.ReadAll(videoFile)
 
-	vf, vh, err := r.FormFile("video")
-	if err != nil { writeErr(w, 400, "missing_video"); return }
-	defer vf.Close()
-	vbytes, _ := io.ReadAll(vf)
+	thumbFile, thumbHeader, err := r.FormFile("thumbnail")
+	if err != nil {
+		writeErr(w, 400, "missing_thumbnail")
+		return
+	}
+	defer thumbFile.Close()
+	thumbBytes, _ := io.ReadAll(thumbFile)
 
-	tf, th, err := r.FormFile("thumbnail")
-	if err != nil { writeErr(w, 400, "missing_thumbnail"); return }
-	defer tf.Close()
-	tbytes, _ := io.ReadAll(tf)
-
-	out, err := h.VideoJobs.EnqueueVideoCreativeJob(r.Context(), service.CreateVideoJobInput{
-		ClientID:     clientID,
-		Name:         r.FormValue("name"),
-		Link:         r.FormValue("link"),
-		Message:      r.FormValue("message"),
-		Headline:     r.FormValue("headline"),
-		Description:  r.FormValue("description"),
-		CTAType:      r.FormValue("cta_type"),
-		VideoName:    vh.Filename,
-		VideoBytes:   vbytes,
-		ThumbName:    th.Filename,
-		ThumbBytes:   tbytes,
+	out, err := h.CreativeSync.CreateVideoCreative(r.Context(), service.VideoCreativeInput{
+		ClientID: clientID,
+		Name: r.FormValue("name"),
+		Link: r.FormValue("link"),
+		Message: r.FormValue("message"),
+		Headline: r.FormValue("headline"),
+		Description: r.FormValue("description"),
+		VideoName: videoHeader.Filename,
+		VideoBytes: videoBytes,
+		ThumbName: thumbHeader.Filename,
+		ThumbBytes: thumbBytes,
 	})
-	if err != nil { writeErr(w, 400, err.Error()); return }
-	writeJSON(w, 202, out)
+	if err != nil {
+		writeErr(w, 400, err.Error())
+		return
+	}
+
+	writeJSON(w, 200, out)
 }
 
 func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
@@ -196,4 +208,40 @@ func (h *Handler) CreateAd(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil { writeErr(w, 400, err.Error()); return }
 	writeJSON(w, 200, out)
+}
+
+func (h *Handler) ListCreatives(w http.ResponseWriter, r *http.Request) {
+	clientID := r.URL.Query().Get("client_id")
+	typeFilter := r.URL.Query().Get("type")
+
+	if typeFilter != "" && typeFilter != "image" && typeFilter != "video" {
+		writeErr(w, 400, "invalid_type_filter"); return
+	}
+
+	creatives, err := h.Store.ListCreatives(r.Context(), clientID, typeFilter)
+	if err != nil {
+		writeErr(w, 500, "failed to list creatives"); 
+		return 
+	}
+
+	writeJSON(w, 200, map[string]any{
+		"creatives": creatives,
+		"count": len(creatives),
+	})
+}
+
+func (h *Handler) GetCreative(w http.ResponseWriter, r *http.Request) {
+	creativeID := chi.URLParam(r, "creative_id")
+	if creativeID == "" { 
+		writeErr(w, 400, "missing_creative_id"); 
+		return 
+	}
+
+	creative, err := h.Store.GetCreative(r.Context(), creativeID)
+	if err != nil { 
+		writeErr(w, 404, "creative_not_found"); 
+		return 
+	}
+
+	writeJSON(w, 200, creative)
 }
