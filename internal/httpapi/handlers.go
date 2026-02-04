@@ -96,27 +96,6 @@ func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
-func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
-	jobID := chi.URLParam(r, "job_id")
-	if jobID == "" { writeErr(w, 400, "missing_job_id"); return }
-
-	j, err := h.Store.GetJob(r.Context(), jobID)
-	if err != nil { writeErr(w, 404, "job_not_found"); return }
-
-	resp := map[string]any{
-		"job_id":    j.JobID,
-		"client_id": j.ClientID,
-		"type":      j.JobType,
-		"status":    j.Status,
-		"result":    json.RawMessage(j.ResultJSON),
-		"error":     nil,
-	}
-	if j.ErrorText != nil {
-		resp["error"] = *j.ErrorText
-	}
-	writeJSON(w, 200, resp)
-}
-
 func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ClientID            string   `json:"client_id"`
