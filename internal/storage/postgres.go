@@ -29,20 +29,6 @@ func (s *Store) GetClient(ctx context.Context, clientID string) (Client, error) 
 	return c, err
 }
 
-type Job struct {
-	JobID         string
-	ClientID      string
-	JobType       string
-	Status        string
-	InputJSON     json.RawMessage
-	BlobVideoPath *string
-	BlobThumbPath *string
-	ResultJSON    json.RawMessage
-	ErrorText     *string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
 type Creative struct {
 	CreativeID   string          `json:"creative_id"`
 	ClientID     string          `json:"client_id"`
@@ -57,49 +43,6 @@ type Creative struct {
 	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
-func (s *Store) CreateJob(ctx context.Context, j Job) error {
-	_, err := s.DB.Exec(ctx, `
-		INSERT INTO jobs(job_id, client_id, job_type, status, input_json, blob_video_path, blob_thumb_path)
-		VALUES($1,$2,$3,$4,$5,$6,$7)
-	`, j.JobID, j.ClientID, j.JobType, j.Status, j.InputJSON, j.BlobVideoPath, j.BlobThumbPath)
-	return err
-}
-
-func (s *Store) GetJob(ctx context.Context, jobID string) (Job, error) {
-	var j Job
-	err := s.DB.QueryRow(ctx, `
-		SELECT job_id, client_id, job_type, status, input_json, blob_video_path, blob_thumb_path,
-		       COALESCE(result_json,'{}'::jsonb), error_text, created_at, updated_at
-		FROM jobs WHERE job_id=$1
-	`, jobID).Scan(
-		&j.JobID, &j.ClientID, &j.JobType, &j.Status, &j.InputJSON,
-		&j.BlobVideoPath, &j.BlobThumbPath, &j.ResultJSON, &j.ErrorText, &j.CreatedAt, &j.UpdatedAt,
-	)
-	return j, err
-}
-
-func (s *Store) UpdateJobStatus(ctx context.Context, jobID, status string) error {
-	_, err := s.DB.Exec(ctx, `UPDATE jobs SET status=$2, updated_at=now() WHERE job_id=$1`, jobID, status)
-	return err
-}
-
-func (s *Store) CompleteJob(ctx context.Context, jobID string, result any) error {
-	b, _ := json.Marshal(result)
-	_, err := s.DB.Exec(ctx, `
-		UPDATE jobs SET status='succeeded', result_json=$2, error_text=NULL, updated_at=now()
-		WHERE job_id=$1
-	`, jobID, b)
-	return err
-}
-
-func (s *Store) FailJob(ctx context.Context, jobID string, errText string) error {
-	_, err := s.DB.Exec(ctx, `
-		UPDATE jobs SET status='failed', error_text=$2, updated_at=now()
-		WHERE job_id=$1
-	`, jobID, errText)
-	return err
-}
-
 func (s *Store) CreateCreative(ctx context.Context, c Creative) error {
 	_, err := s.DB.Exec(ctx, `
 		INSERT INTO creatives(creative_id, client_id, name, type, s3_url, s3_thumb_url, link, message, meta_data)
@@ -112,7 +55,7 @@ func (s *Store) GetCreative(ctx context.Context, creativeID string) (Creative, e
 	var c Creative
 	err := s.DB.QueryRow(ctx, `
 		SELECT creative_id, client_id, name, type, s3_url, s3_thumb_url, link, message, 
-			COALESCE(meta_data,'{}'::jsonb), created_at, updated_at
+			COALESCE(meta_data,'{}'::jsonb) AS meta_data, created_at, updated_at
 		FROM creatives WHERE creative_id=$1
 	`, creativeID).Scan(
 		&c.CreativeID, &c.ClientID, &c.Name, &c.Type, &c.S3URL,
@@ -121,10 +64,21 @@ func (s *Store) GetCreative(ctx context.Context, creativeID string) (Creative, e
 	return c, err
 }
 
+var allowedType = map[string]struct{}{
+	"image": {},
+	"video": {},
+}
+
 func (s *Store) ListCreatives(ctx context.Context, clientID string, typeFilter string) ([]Creative, error) {
+	if typeFilter != "" {
+		if _, ok := allowedType[typeFilter]; !ok {
+			return nil, fmt.Errorf("invalid typeFilter: %q", typeFilter)
+		}
+	}
+
 	query := `
 		SELECT creative_id, client_id, name, type, s3_url, s3_thumb_url, link, message, 
-			COALESCE(meta_data,'{}'::jsonb), created_at, updated_at
+			COALESCE(meta_data,'{}'::jsonb) AS meta_data, created_at, updated_at
 		FROM creatives WHERE 1=1
 	`
 	args := []any{}
@@ -141,9 +95,9 @@ func (s *Store) ListCreatives(ctx context.Context, clientID string, typeFilter s
 		args = append(args, typeFilter)
 		argsPos++
 	}
-	
+
 	query += " ORDER BY created_at DESC LIMIT 100"
-	
+
 	rows, err := s.DB.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -153,14 +107,22 @@ func (s *Store) ListCreatives(ctx context.Context, clientID string, typeFilter s
 	var creatives []Creative
 	for rows.Next() {
 		var c Creative
+		var md []byte
+
 		err := rows.Scan(
 			&c.CreativeID, &c.ClientID, &c.Name, &c.Type, &c.S3URL,
-			&c.S3ThumbURL, &c.Link, &c.Message, &c.MetaData, &c.CreatedAt, &c.UpdatedAt,
+			&c.S3ThumbURL, &c.Link, &c.Message, &md, &c.CreatedAt, &c.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		c.MetaData = append(json.RawMessage(nil), md...)
 		creatives = append(creatives, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return creatives, nil
 }
