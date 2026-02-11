@@ -16,13 +16,27 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/golang-migrate/migrate/v4"
 )
+
+func runMigrations(dbURL string) error {
+       m, err := migrate.New(
+           "file://internal/storage/migrations",
+           dbURL,
+       )
+       if err != nil { return err }
+       return m.Up()
+   }
 
 func main() {
 	_ = godotenv.Load()
 	
 	cfg := config.Load()
 	if cfg.DatabaseURL == "" { log.Fatal("DATABASE_URL is required") }
+
+	if err := runMigrations(cfg.DatabaseURL); err != nil {
+		log.Printf("Migration warning: %v", err)
+	}
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
