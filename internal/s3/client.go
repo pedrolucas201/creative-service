@@ -60,8 +60,8 @@ func (c *Client) Upload(ctx context.Context, key string, data io.Reader, content
 		return "", fmt.Errorf("falha ao fazer upload para S3: %w", err)
 	}
 
-	url := c.GetURL(key)
-	return url, nil
+	// Retorna apenas o caminho (key), sem o prefixo do bucket
+	return "/" + key, nil
 }
 	
 func (c *Client) GetURL(key string) string {
