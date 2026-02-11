@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-type Resolver interface{ Resolve(tokenRef string) (string, error) }
+type Resolver interface{ 
+	Resolve(tokenRef string) (string, error) 
+}
 
 type EnvResolver struct{}
 
