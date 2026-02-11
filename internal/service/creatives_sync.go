@@ -28,7 +28,6 @@ type CreativeSyncService struct {
 }
 
 type ImageCreativeInput struct {
-	ClientID    string // Deprecated: manter por compatibilidade
 	AdAccountID string // Meta ID da ad account (act_123456789)
 
 	Name        string
@@ -49,7 +48,6 @@ type ImageCreativeOutput struct {
 }
 
 type VideoCreativeInput struct {
-	ClientID    string // Deprecated: manter por compatibilidade
 	AdAccountID string // Meta ID da ad account (act_123456789)
 	
 	Name        string
@@ -128,17 +126,10 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 	_, err = mc.GetCreative(ctx, creativeID, []string{"id", "object_story_spec"})
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("creative created but validate failed: %w", err) }
 
-	// Buscar client para pegar client_id (legacy, para FK)
-	clientData, err := s.Store.GetClientByUUID(ctx, client.ClientUUID)
-	if err != nil {
-		return ImageCreativeOutput{}, fmt.Errorf("get client by uuid: %w", err)
-	}
-
 	creativeRecord := storage.Creative{
 		CreativeID:  creativeID,
 		ClientUUID:  client.ClientUUID,
 		AdAccountID: adAccount.AdAccountID,
-		ClientID:    clientData.ClientID, // Usar o client_id correto do banco
 		Name:        in.Name,
 		Type:        "image",
 		S3URL:       s3URL,
@@ -229,17 +220,10 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	_, err = mc.GetCreative(ctx, creativeID, []string{"id", "object_story_spec"})
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("creative created but validate failed: %w", err) }
 
-	// Buscar client para pegar client_id (legacy, para FK)
-	clientData, err := s.Store.GetClientByUUID(ctx, client.ClientUUID)
-	if err != nil {
-		return VideoCreativeOutput{}, fmt.Errorf("get client by uuid: %w", err)
-	}
-
 	creativeRecord := storage.Creative{
 		CreativeID:  creativeID,
 		ClientUUID:  client.ClientUUID,
 		AdAccountID: adAccount.AdAccountID,
-		ClientID:    clientData.ClientID, // Usar o client_id correto do banco
 		Name:        in.Name,
 		Type:        "video",
 		S3URL:       s3URL,

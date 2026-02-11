@@ -22,7 +22,6 @@ type AdSetService struct {
 }
 
 type CreateAdSetInput struct {
-	ClientID         string // Deprecated: manter por compatibilidade
 	AdAccountID      string // Meta ID da ad account (act_123456789)
 	CampaignID       string
 	Name             string
@@ -146,4 +145,78 @@ func (s *AdSetService) ListAdSets(ctx context.Context, in ListAdSetsInput) (List
 	}
 
 	return ListAdSetsOutput{AdSets: adsets}, nil
+}
+
+// ======= UPDATE AdSet =======
+
+type UpdateAdSetInput struct {
+	AdAccountID  string  // necessário para resolver token
+	AdSetID      string
+	Name         *string // opcional
+	Status       *string // opcional (ACTIVE, PAUSED, DELETED)
+	DailyBudget  *int    // opcional
+}
+
+func (s *AdSetService) UpdateAdSet(ctx context.Context, in UpdateAdSetInput) error {
+	if err := s.Sem.Acquire(ctx); err != nil {
+		return err
+	}
+	defer s.Sem.Release()
+
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get ad account: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	if err != nil {
+		return fmt.Errorf("resolve token: %w", err)
+	}
+
+	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
+
+	payload := map[string]any{}
+	if in.Name != nil {
+		payload["name"] = *in.Name
+	}
+	if in.Status != nil {
+		payload["status"] = *in.Status
+	}
+	if in.DailyBudget != nil {
+		payload["daily_budget"] = *in.DailyBudget
+	}
+
+	if len(payload) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	return mc.UpdateAdSet(ctx, in.AdSetID, payload)
+}
+
+// ======= DELETE AdSet (soft delete) =======
+
+type DeleteAdSetInput struct {
+	AdAccountID string // necessário para resolver token
+	AdSetID     string
+}
+
+func (s *AdSetService) DeleteAdSet(ctx context.Context, in DeleteAdSetInput) error {
+	if err := s.Sem.Acquire(ctx); err != nil {
+		return err
+	}
+	defer s.Sem.Release()
+
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get ad account: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	if err != nil {
+		return fmt.Errorf("resolve token: %w", err)
+	}
+
+	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
+
+	return mc.SoftDeleteAdSet(ctx, in.AdSetID)
 }

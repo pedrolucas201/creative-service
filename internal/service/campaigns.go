@@ -22,7 +22,6 @@ type CampaignService struct {
 }
 
 type CreateCampaignInput struct {
-	ClientID             string // Deprecated: manter por compatibilidade
 	AdAccountID          string 
 	Name                 string
 	Objective            string
@@ -136,4 +135,74 @@ func (s *CampaignService) ListCampaigns(ctx context.Context, in ListCampaignsInp
 	}
 
 	return ListCampaignsOutput{Campaigns: campaigns}, nil
+}
+
+// ======= UPDATE Campaign =======
+
+type UpdateCampaignInput struct {
+	AdAccountID string  // necessário para resolver token
+	CampaignID  string
+	Name        *string // opcional
+	Status      *string // opcional (ACTIVE, PAUSED, DELETED)
+}
+
+func (s *CampaignService) UpdateCampaign(ctx context.Context, in UpdateCampaignInput) error {
+	if err := s.Sem.Acquire(ctx); err != nil {
+		return err
+	}
+	defer s.Sem.Release()
+
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get ad account: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	if err != nil {
+		return fmt.Errorf("resolve token: %w", err)
+	}
+
+	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
+
+	payload := map[string]any{}
+	if in.Name != nil {
+		payload["name"] = *in.Name
+	}
+	if in.Status != nil {
+		payload["status"] = *in.Status
+	}
+
+	if len(payload) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	return mc.UpdateCampaign(ctx, in.CampaignID, payload)
+}
+
+// ======= DELETE Campaign (soft delete) =======
+
+type DeleteCampaignInput struct {
+	AdAccountID string // necessário para resolver token
+	CampaignID  string
+}
+
+func (s *CampaignService) DeleteCampaign(ctx context.Context, in DeleteCampaignInput) error {
+	if err := s.Sem.Acquire(ctx); err != nil {
+		return err
+	}
+	defer s.Sem.Release()
+
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get ad account: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	if err != nil {
+		return fmt.Errorf("resolve token: %w", err)
+	}
+
+	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
+
+	return mc.SoftDeleteCampaign(ctx, in.CampaignID)
 }

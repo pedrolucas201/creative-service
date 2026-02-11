@@ -22,7 +22,6 @@ type AdService struct {
 }
 
 type CreateAdInput struct {
-	ClientID    string // Deprecated: manter por compatibilidade
 	AdAccountID string // Meta ID da ad account (act_123456789)
 	AdSetID     string
 	CreativeID  string
@@ -134,4 +133,74 @@ func (s *AdService) ListAds(ctx context.Context, in ListAdsInput) (ListAdsOutput
 	}
 
 	return ListAdsOutput{Ads: ads}, nil
+}
+
+// ======= UPDATE Ad =======
+
+type UpdateAdInput struct {
+	AdAccountID string  // necessário para resolver token
+	AdID        string
+	Name        *string // opcional
+	Status      *string // opcional (ACTIVE, PAUSED, DELETED)
+}
+
+func (s *AdService) UpdateAd(ctx context.Context, in UpdateAdInput) error {
+	if err := s.Sem.Acquire(ctx); err != nil {
+		return err
+	}
+	defer s.Sem.Release()
+
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get ad account: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	if err != nil {
+		return fmt.Errorf("resolve token: %w", err)
+	}
+
+	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
+
+	payload := map[string]any{}
+	if in.Name != nil {
+		payload["name"] = *in.Name
+	}
+	if in.Status != nil {
+		payload["status"] = *in.Status
+	}
+
+	if len(payload) == 0 {
+		return fmt.Errorf("no fields to update")
+	}
+
+	return mc.UpdateAd(ctx, in.AdID, payload)
+}
+
+// ======= DELETE Ad (soft delete) =======
+
+type DeleteAdInput struct {
+	AdAccountID string // necessário para resolver token
+	AdID        string
+}
+
+func (s *AdService) DeleteAd(ctx context.Context, in DeleteAdInput) error {
+	if err := s.Sem.Acquire(ctx); err != nil {
+		return err
+	}
+	defer s.Sem.Release()
+
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get ad account: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	if err != nil {
+		return fmt.Errorf("resolve token: %w", err)
+	}
+
+	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
+
+	return mc.SoftDeleteAd(ctx, in.AdID)
 }
