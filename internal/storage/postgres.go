@@ -87,7 +87,6 @@ type Creative struct {
 	CreativeID      string          `json:"creative_id"`
 	ClientUUID      string          `json:"client_uuid"`
 	AdAccountID     string          `json:"ad_account_id"` // FK: act_123456789
-	ClientID        string          `json:"client_id"` // Deprecated: manter temporariamente
 	Name            string          `json:"name"`
 	Type            string          `json:"type"` // image ou video
 	S3URL           string          `json:"s3_url"`
@@ -102,21 +101,21 @@ type Creative struct {
 
 func (s *Store) CreateCreative(ctx context.Context, c Creative) error {
 	_, err := s.DB.Exec(ctx, `
-		INSERT INTO creatives(creative_id, client_uuid, ad_account_id, client_id, name, type, s3_url, s3_thumb_url, link, message, meta_data)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-	`, c.CreativeID, c.ClientUUID, c.AdAccountID, c.ClientID, c.Name, c.Type, c.S3URL, c.S3ThumbURL, c.Link, c.Message, c.MetaData)
+		INSERT INTO creatives(creative_id, client_uuid, ad_account_id, name, type, s3_url, s3_thumb_url, link, message, meta_data)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+	`, c.CreativeID, c.ClientUUID, c.AdAccountID, c.Name, c.Type, c.S3URL, c.S3ThumbURL, c.Link, c.Message, c.MetaData)
 	return err
 }
 
 func (s *Store) GetCreative(ctx context.Context, creativeID string) (Creative, error) {
 	var c Creative
 	err := s.DB.QueryRow(ctx, `
-		SELECT creative_id, client_uuid, ad_account_id, client_id, name, type, s3_url, s3_thumb_url, link, message, 
+		SELECT creative_id, client_uuid, ad_account_id, name, type, s3_url, s3_thumb_url, link, message, 
 			COALESCE(meta_data,'{}'::jsonb) AS meta_data, deleted_at, created_at, updated_at
 		FROM creatives 
 		WHERE creative_id=$1 AND deleted_at IS NULL
 	`, creativeID).Scan(
-		&c.CreativeID, &c.ClientUUID, &c.AdAccountID, &c.ClientID, &c.Name, &c.Type, &c.S3URL,
+		&c.CreativeID, &c.ClientUUID, &c.AdAccountID, &c.Name, &c.Type, &c.S3URL,
 		&c.S3ThumbURL, &c.Link, &c.Message, &c.MetaData, &c.DeletedAt, &c.CreatedAt, &c.UpdatedAt,
 	)
 	return c, err
@@ -127,7 +126,7 @@ var allowedType = map[string]struct{}{
 	"video": {},
 }
 
-func (s *Store) ListCreatives(ctx context.Context, clientID string, typeFilter string) ([]Creative, error) {
+func (s *Store) ListCreatives(ctx context.Context, adAccountID string, typeFilter string) ([]Creative, error) {
 	if typeFilter != "" {
 		if _, ok := allowedType[typeFilter]; !ok {
 			return nil, fmt.Errorf("invalid typeFilter: %q", typeFilter)
@@ -135,16 +134,16 @@ func (s *Store) ListCreatives(ctx context.Context, clientID string, typeFilter s
 	}
 
 	query := `
-		SELECT creative_id, client_uuid, ad_account_id, client_id, name, type, s3_url, s3_thumb_url, link, message, 
+		SELECT creative_id, client_uuid, ad_account_id, name, type, s3_url, s3_thumb_url, link, message, 
 			COALESCE(meta_data,'{}'::jsonb) AS meta_data, deleted_at, created_at, updated_at
 		FROM creatives WHERE deleted_at IS NULL
 	`
 	args := []any{}
 	argsPos := 1
 
-	if clientID != "" {
-		query += fmt.Sprintf(" AND client_id=$%d", argsPos)
-		args = append(args, clientID)
+	if adAccountID != "" {
+		query += fmt.Sprintf(" AND ad_account_id=$%d", argsPos)
+		args = append(args, adAccountID)
 		argsPos++
 	}
 
@@ -168,7 +167,7 @@ func (s *Store) ListCreatives(ctx context.Context, clientID string, typeFilter s
 		var md []byte
 
 		err := rows.Scan(
-			&c.CreativeID, &c.ClientUUID, &c.AdAccountID, &c.ClientID, &c.Name, &c.Type, &c.S3URL,
+			&c.CreativeID, &c.ClientUUID, &c.AdAccountID, &c.Name, &c.Type, &c.S3URL,
 			&c.S3ThumbURL, &c.Link, &c.Message, &md, &c.DeletedAt, &c.CreatedAt, &c.UpdatedAt,
 		)
 		if err != nil {
