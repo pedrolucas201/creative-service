@@ -41,11 +41,7 @@ func (h *Handler) CreateImageCreative(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid_multipart"); return
 	}
 	
-	// Aceitar ad_account_id (novo) ou client_id (deprecated)
 	adAccountID := r.FormValue("ad_account_id")
-	if adAccountID == "" {
-		adAccountID = r.FormValue("client_id") // Fallback para compatibilidade
-	}
 	if adAccountID == "" { 
 		writeErr(w, 400, "missing_ad_account_id"); 
 		return 
@@ -58,7 +54,6 @@ func (h *Handler) CreateImageCreative(w http.ResponseWriter, r *http.Request) {
 
 	out, err := h.CreativeSync.CreateImageCreative(r.Context(), service.ImageCreativeInput{
 		AdAccountID:  adAccountID,
-		ClientID:     adAccountID, // Manter por compatibilidade
 		Name:         r.FormValue("name"),
 		Link:         r.FormValue("link"),
 		Message:      r.FormValue("message"),
@@ -76,11 +71,7 @@ func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid_multipart"); return
 	}
 
-	// Aceitar ad_account_id (novo) ou client_id (deprecated)
 	adAccountID := r.FormValue("ad_account_id")
-	if adAccountID == "" {
-		adAccountID = r.FormValue("client_id") // Fallback para compatibilidade
-	}
 	if adAccountID == "" {
 		writeErr(w, 400, "missing_ad_account_id"); 
 		return
@@ -104,7 +95,6 @@ func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 
 	out, err := h.CreativeSync.CreateVideoCreative(r.Context(), service.VideoCreativeInput{
 		AdAccountID:  adAccountID,
-		ClientID:     adAccountID, // Manter por compatibilidade
 		Name:         r.FormValue("name"),
 		Link:         r.FormValue("link"),
 		Message:      r.FormValue("message"),
@@ -125,8 +115,7 @@ func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ClientID            string   `json:"client_id"`             // Deprecated
-		AdAccountID         string   `json:"ad_account_id"`         // Usar este
+		AdAccountID         string   `json:"ad_account_id"`
 		Name                string   `json:"name"`
 		Objective           string   `json:"objective"`
 		Status              string   `json:"status"`
@@ -138,12 +127,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid_json"); return
 	}
 	
-	// Aceitar ad_account_id ou client_id (compatibilidade)
-	adAccountID := req.AdAccountID
-	if adAccountID == "" {
-		adAccountID = req.ClientID
-	}
-	if adAccountID == "" { writeErr(w, 400, "missing_ad_account_id"); return }
+	if req.AdAccountID == "" { writeErr(w, 400, "missing_ad_account_id"); return }
 	if req.Name == "" { writeErr(w, 400, "missing_name"); return }
 	if req.Objective == "" { writeErr(w, 400, "missing_objective"); return }
 	if req.Status == "" { req.Status = "PAUSED" }
@@ -151,7 +135,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	if req.BuyingType == "" { req.BuyingType = "AUCTION" }
 
 	out, err := h.Campaigns.CreateCampaign(r.Context(), service.CreateCampaignInput{
-		AdAccountID:         adAccountID,
+		AdAccountID:         req.AdAccountID,
 		Name:                req.Name,
 		Objective:           req.Objective,
 		Status:              req.Status,
@@ -165,8 +149,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateAdSet(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ClientID         string         `json:"client_id"`          // Deprecated
-		AdAccountID      string         `json:"ad_account_id"`      // Usar este
+		AdAccountID      string         `json:"ad_account_id"`
 		CampaignID       string         `json:"campaign_id"`
 		Name             string         `json:"name"`
 		BillingEvent     string         `json:"billing_event"`
@@ -180,12 +163,7 @@ func (h *Handler) CreateAdSet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid_json"); return
 	}
 	
-	// Aceitar ad_account_id ou client_id (compatibilidade)
-	adAccountID := req.AdAccountID
-	if adAccountID == "" {
-		adAccountID = req.ClientID
-	}
-	if adAccountID == "" { writeErr(w, 400, "missing_ad_account_id"); return }
+	if req.AdAccountID == "" { writeErr(w, 400, "missing_ad_account_id"); return }
 	if req.CampaignID == "" { writeErr(w, 400, "missing_campaign_id"); return }
 	if req.Name == "" { writeErr(w, 400, "missing_name"); return }
 	if req.BillingEvent == "" { writeErr(w, 400, "missing_billing_event"); return }
@@ -194,7 +172,7 @@ func (h *Handler) CreateAdSet(w http.ResponseWriter, r *http.Request) {
 	if req.Status == "" { req.Status = "PAUSED" }
 
 	out, err := h.AdSets.CreateAdSet(r.Context(), service.CreateAdSetInput{
-		AdAccountID:      adAccountID,
+		AdAccountID:      req.AdAccountID,
 		CampaignID:       req.CampaignID,
 		Name:             req.Name,
 		BillingEvent:     req.BillingEvent,
@@ -210,48 +188,42 @@ func (h *Handler) CreateAdSet(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateAd(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ClientID   string `json:"client_id"`      // Deprecated
-		AdAccountID string `json:"ad_account_id"` // Usar este
-		AdSetID    string `json:"adset_id"`
-		CreativeID string `json:"creative_id"`
-		Name       string `json:"name"`
-		Status     string `json:"status"`
+		AdAccountID string `json:"ad_account_id"`
+		AdSetID     string `json:"adset_id"`
+		CreativeID  string `json:"creative_id"`
+		Name        string `json:"name"`
+		Status      string `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, 400, "invalid_json"); return
 	}
 	
-	// Aceitar ad_account_id ou client_id (compatibilidade)
-	adAccountID := req.AdAccountID
-	if adAccountID == "" {
-		adAccountID = req.ClientID
-	}
-	if adAccountID == "" { writeErr(w, 400, "missing_ad_account_id"); return }
+	if req.AdAccountID == "" { writeErr(w, 400, "missing_ad_account_id"); return }
 	if req.AdSetID == "" { writeErr(w, 400, "missing_adset_id"); return }
 	if req.CreativeID == "" { writeErr(w, 400, "missing_creative_id"); return }
 	if req.Name == "" { writeErr(w, 400, "missing_name"); return }
 	if req.Status == "" { req.Status = "PAUSED" }
 
 	out, err := h.Ads.CreateAd(r.Context(), service.CreateAdInput{
-		AdAccountID: adAccountID,
-		AdSetID:    req.AdSetID,
-		CreativeID: req.CreativeID,
-		Name:       req.Name,
-		Status:     req.Status,
+		AdAccountID: req.AdAccountID,
+		AdSetID:     req.AdSetID,
+		CreativeID:  req.CreativeID,
+		Name:        req.Name,
+		Status:      req.Status,
 	})
 	if err != nil { writeErr(w, 400, err.Error()); return }
 	writeJSON(w, 200, out)
 }
 
 func (h *Handler) ListCreatives(w http.ResponseWriter, r *http.Request) {
-	clientID := r.URL.Query().Get("client_id")
+	adAccountID := r.URL.Query().Get("ad_account_id")
 	typeFilter := r.URL.Query().Get("type")
 
 	if typeFilter != "" && typeFilter != "image" && typeFilter != "video" {
 		writeErr(w, 400, "invalid_type_filter"); return
 	}
 
-	creatives, err := h.Store.ListCreatives(r.Context(), clientID, typeFilter)
+	creatives, err := h.Store.ListCreatives(r.Context(), adAccountID, typeFilter)
 	if err != nil {
 		writeErr(w, 500, "failed to list creatives"); 
 		return 
@@ -371,4 +343,212 @@ func (h *Handler) ListAds(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, 200, out)
+}
+// ======= UPDATE Campaign =======
+
+func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
+campaignID := chi.URLParam(r, "campaign_id")
+if campaignID == "" {
+writeErr(w, 400, "missing_campaign_id")
+return
+}
+
+body, err := io.ReadAll(r.Body)
+if err != nil {
+writeErr(w, 400, "invalid_body")
+return
+}
+
+var req struct {
+AdAccountID string  `json:"ad_account_id"`
+Name        *string `json:"name"`
+Status      *string `json:"status"`
+}
+if err := json.Unmarshal(body, &req); err != nil {
+writeErr(w, 400, "invalid_json")
+return
+}
+
+if req.AdAccountID == "" {
+writeErr(w, 400, "missing_ad_account_id")
+return
+}
+
+if err := h.Campaigns.UpdateCampaign(r.Context(), service.UpdateCampaignInput{
+AdAccountID: req.AdAccountID,
+CampaignID:  campaignID,
+Name:        req.Name,
+Status:      req.Status,
+}); err != nil {
+writeErr(w, 500, err.Error())
+return
+}
+
+writeJSON(w, 200, map[string]any{"success": true})
+}
+
+// ======= DELETE Campaign (soft delete) =======
+
+func (h *Handler) DeleteCampaign(w http.ResponseWriter, r *http.Request) {
+campaignID := chi.URLParam(r, "campaign_id")
+if campaignID == "" {
+writeErr(w, 400, "missing_campaign_id")
+return
+}
+
+adAccountID := r.URL.Query().Get("ad_account_id")
+if adAccountID == "" {
+writeErr(w, 400, "missing_ad_account_id")
+return
+}
+
+if err := h.Campaigns.DeleteCampaign(r.Context(), service.DeleteCampaignInput{
+AdAccountID: adAccountID,
+CampaignID:  campaignID,
+}); err != nil {
+writeErr(w, 500, err.Error())
+return
+}
+
+writeJSON(w, 200, map[string]any{"success": true})
+}
+
+// ======= UPDATE AdSet =======
+
+func (h *Handler) UpdateAdSet(w http.ResponseWriter, r *http.Request) {
+adsetID := chi.URLParam(r, "adset_id")
+if adsetID == "" {
+writeErr(w, 400, "missing_adset_id")
+return
+}
+
+body, err := io.ReadAll(r.Body)
+if err != nil {
+writeErr(w, 400, "invalid_body")
+return
+}
+
+var req struct {
+AdAccountID string  `json:"ad_account_id"`
+Name        *string `json:"name"`
+Status      *string `json:"status"`
+DailyBudget *int    `json:"daily_budget"`
+}
+if err := json.Unmarshal(body, &req); err != nil {
+writeErr(w, 400, "invalid_json")
+return
+}
+
+if req.AdAccountID == "" {
+writeErr(w, 400, "missing_ad_account_id")
+return
+}
+
+if err := h.AdSets.UpdateAdSet(r.Context(), service.UpdateAdSetInput{
+AdAccountID: req.AdAccountID,
+AdSetID:     adsetID,
+Name:        req.Name,
+Status:      req.Status,
+DailyBudget: req.DailyBudget,
+}); err != nil {
+writeErr(w, 500, err.Error())
+return
+}
+
+writeJSON(w, 200, map[string]any{"success": true})
+}
+
+// ======= DELETE AdSet (soft delete) =======
+
+func (h *Handler) DeleteAdSet(w http.ResponseWriter, r *http.Request) {
+adsetID := chi.URLParam(r, "adset_id")
+if adsetID == "" {
+writeErr(w, 400, "missing_adset_id")
+return
+}
+
+adAccountID := r.URL.Query().Get("ad_account_id")
+if adAccountID == "" {
+writeErr(w, 400, "missing_ad_account_id")
+return
+}
+
+if err := h.AdSets.DeleteAdSet(r.Context(), service.DeleteAdSetInput{
+AdAccountID: adAccountID,
+AdSetID:     adsetID,
+}); err != nil {
+writeErr(w, 500, err.Error())
+return
+}
+
+writeJSON(w, 200, map[string]any{"success": true})
+}
+
+// ======= UPDATE Ad =======
+
+func (h *Handler) UpdateAd(w http.ResponseWriter, r *http.Request) {
+adID := chi.URLParam(r, "ad_id")
+if adID == "" {
+writeErr(w, 400, "missing_ad_id")
+return
+}
+
+body, err := io.ReadAll(r.Body)
+if err != nil {
+writeErr(w, 400, "invalid_body")
+return
+}
+
+var req struct {
+AdAccountID string  `json:"ad_account_id"`
+Name        *string `json:"name"`
+Status      *string `json:"status"`
+}
+if err := json.Unmarshal(body, &req); err != nil {
+writeErr(w, 400, "invalid_json")
+return
+}
+
+if req.AdAccountID == "" {
+writeErr(w, 400, "missing_ad_account_id")
+return
+}
+
+if err := h.Ads.UpdateAd(r.Context(), service.UpdateAdInput{
+AdAccountID: req.AdAccountID,
+AdID:        adID,
+Name:        req.Name,
+Status:      req.Status,
+}); err != nil {
+writeErr(w, 500, err.Error())
+return
+}
+
+writeJSON(w, 200, map[string]any{"success": true})
+}
+
+// ======= DELETE Ad (soft delete) =======
+
+func (h *Handler) DeleteAd(w http.ResponseWriter, r *http.Request) {
+adID := chi.URLParam(r, "ad_id")
+if adID == "" {
+writeErr(w, 400, "missing_ad_id")
+return
+}
+
+adAccountID := r.URL.Query().Get("ad_account_id")
+if adAccountID == "" {
+writeErr(w, 400, "missing_ad_account_id")
+return
+}
+
+if err := h.Ads.DeleteAd(r.Context(), service.DeleteAdInput{
+AdAccountID: adAccountID,
+AdID:        adID,
+}); err != nil {
+writeErr(w, 500, err.Error())
+return
+}
+
+writeJSON(w, 200, map[string]any{"success": true})
 }

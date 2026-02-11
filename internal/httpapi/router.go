@@ -17,10 +17,16 @@ type Handlers interface {
 	SoftDeleteCreative(http.ResponseWriter, *http.Request)
 	CreateCampaign(http.ResponseWriter, *http.Request)
 	ListCampaigns(http.ResponseWriter, *http.Request)
+	UpdateCampaign(http.ResponseWriter, *http.Request)
+	DeleteCampaign(http.ResponseWriter, *http.Request)
 	CreateAdSet(http.ResponseWriter, *http.Request)
 	ListAdSets(http.ResponseWriter, *http.Request)
+	UpdateAdSet(http.ResponseWriter, *http.Request)
+	DeleteAdSet(http.ResponseWriter, *http.Request)
 	CreateAd(http.ResponseWriter, *http.Request)
 	ListAds(http.ResponseWriter, *http.Request)
+	UpdateAd(http.ResponseWriter, *http.Request)
+	DeleteAd(http.ResponseWriter, *http.Request)
 }
 
 func NewRouter(h Handlers) http.Handler {
@@ -43,10 +49,18 @@ func NewRouter(h Handlers) http.Handler {
 	// Campaigns, AdSets, Ads
 	r.Post("/v1/campaigns", h.CreateCampaign)
 	r.Get("/v1/campaigns", h.ListCampaigns)
+	r.Patch("/v1/campaigns/{campaign_id}", h.UpdateCampaign)
+	r.Delete("/v1/campaigns/{campaign_id}", h.DeleteCampaign)
+	
 	r.Post("/v1/adsets", h.CreateAdSet)
 	r.Get("/v1/adsets", h.ListAdSets)
+	r.Patch("/v1/adsets/{adset_id}", h.UpdateAdSet)
+	r.Delete("/v1/adsets/{adset_id}", h.DeleteAdSet)
+	
 	r.Post("/v1/ads", h.CreateAd)
 	r.Get("/v1/ads", h.ListAds)
+	r.Patch("/v1/ads/{ad_id}", h.UpdateAd)
+	r.Delete("/v1/ads/{ad_id}", h.DeleteAd)
 
 	return r
 }
