@@ -43,7 +43,7 @@ type ImageCreativeInput struct {
 type ImageCreativeOutput struct {
 	ImageHash  string `json:"image_hash"`
 	CreativeID string `json:"creative_id"`
-	S3URL	   string `json:"s3_url"`
+	URL        string `json:"url"`
 	Validated  bool   `json:"validated"`
 }
 
@@ -66,8 +66,8 @@ type VideoCreativeInput struct {
 type VideoCreativeOutput struct {
 	VideoID    string `json:"video_id"`
 	CreativeID string `json:"creative_id"`
-	S3VideoURL	   string `json:"s3_video_url"`
-	S3ThumbURL string `json:"s3_thumb_url"`
+	VideoURL   string `json:"video_url"`
+	ThumbURL   string `json:"thumb_url"`
 	Validated  bool   `json:"validated"`
 }
 
@@ -95,7 +95,7 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.ImageName)
 	
 	imageReader := bytes.NewReader(in.ImageBytes)
-	s3URL, err := s.S3.Upload(ctx, imageKey, imageReader, "image/jpeg")
+	url, err := s.S3.Upload(ctx, imageKey, imageReader, "image/jpeg")
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("upload to S3: %w", err) }
 
 	token, err := s.Tokens.Resolve(adAccount.TokenRef)
@@ -132,8 +132,8 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		AdAccountID: adAccount.AdAccountID,
 		Name:        in.Name,
 		Type:        "image",
-		S3URL:       s3URL,
-		S3ThumbURL:  nil,
+		URL:         url,
+		ThumbURL:    nil,
 		Link:        &in.Link,
 		Message:     &in.Message,
 		MetaData:    json.RawMessage(fmt.Sprintf(`{"image_hash":"%s"}`, imageHash)),
@@ -143,7 +143,7 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		return ImageCreativeOutput{}, fmt.Errorf("save creative to DB: %w", err)
 	}
 
-	return ImageCreativeOutput{ImageHash: imageHash, CreativeID: creativeID, S3URL: s3URL, Validated: true}, nil
+	return ImageCreativeOutput{ImageHash: imageHash, CreativeID: creativeID, URL: url, Validated: true}, nil
 }
 
 func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoCreativeInput) (VideoCreativeOutput, error) {
@@ -172,7 +172,7 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	videoKey := fmt.Sprintf("creatives/videos/%s-%s/%s-%s/%s-%s", 
 		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.VideoName)
 	videoReader := bytes.NewReader(in.VideoBytes)
-	s3URL, err := s.S3.Upload(ctx, videoKey, videoReader, "video/mp4")
+	videoURL, err := s.S3.Upload(ctx, videoKey, videoReader, "video/mp4")
 
 	if err != nil {
 		return VideoCreativeOutput{}, fmt.Errorf("upload video to S3: %w", err)
@@ -181,7 +181,7 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	thumbKey := fmt.Sprintf("creatives/thumbnails/%s-%s/%s-%s/%s-thumb-%s", 
 		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.ThumbName)
    	thumbReader := bytes.NewReader(in.ThumbBytes)
-	s3ThumbURL, err := s.S3.Upload(ctx, thumbKey, thumbReader, "image/jpeg")
+	thumbURL, err := s.S3.Upload(ctx, thumbKey, thumbReader, "image/jpeg")
 
 	if err != nil {
 		return VideoCreativeOutput{}, fmt.Errorf("upload thumb to S3: %w", err)
@@ -226,8 +226,8 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 		AdAccountID: adAccount.AdAccountID,
 		Name:        in.Name,
 		Type:        "video",
-		S3URL:       s3URL,
-		S3ThumbURL:  &s3ThumbURL,
+		URL:         videoURL,
+		ThumbURL:    &thumbURL,
 		Link:        &in.Link,
 		Message:     &in.Message,
 		MetaData:    json.RawMessage(fmt.Sprintf(`{"video_id":"%s","image_hash":"%s"}`, videoID, imageHash)),
@@ -240,8 +240,8 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	return VideoCreativeOutput{
 		VideoID:    videoID,
 		CreativeID: creativeID,
-		S3VideoURL:      s3URL,
-		S3ThumbURL: s3ThumbURL,
+		VideoURL:   videoURL,
+		ThumbURL:   thumbURL,
 		Validated:  true,
 	}, nil
 
