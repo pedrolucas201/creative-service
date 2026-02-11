@@ -15,9 +15,12 @@ import (
 	"creative-service/internal/storage"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	_ = godotenv.Load()
+	
 	cfg := config.Load()
 	if cfg.DatabaseURL == "" { log.Fatal("DATABASE_URL is required") }
 
