@@ -28,7 +28,8 @@ type CreativeSyncService struct {
 }
 
 type ImageCreativeInput struct {
-	ClientID string
+	ClientID    string // Deprecated: manter por compatibilidade
+	AdAccountID string // Meta ID da ad account (act_123456789)
 
 	Name        string
 	Link        string
@@ -48,7 +49,8 @@ type ImageCreativeOutput struct {
 }
 
 type VideoCreativeInput struct {
-	ClientID    string
+	ClientID    string // Deprecated: manter por compatibilidade
+	AdAccountID string // Meta ID da ad account (act_123456789)
 	
 	Name        string
 	Link        string
@@ -75,27 +77,41 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 	if err := s.Sem.Acquire(ctx); err != nil { return ImageCreativeOutput{}, err }
 	defer s.Sem.Release()
 
-	client, err := s.Store.GetClient(ctx, in.ClientID)
+	// Buscar ad account pelo ID (act_123456789)
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("get ad account: %w", err) }
+
+	// Buscar client para pegar nome (usado no path S3)
+	client, err := s.Store.GetClientByUUID(ctx, adAccount.ClientUUID)
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("get client: %w", err) }
 
-	uid := uuid.New().String()
-	imageKey := fmt.Sprintf("creatives/images/%s/%s-%s", in.ClientID, uid, in.ImageName)
+	// Gerar UUID único para o creative
+	creativeUUID := uuid.New().String()
+	
+	// Nova estrutura S3: creatives/images/{client_uuid}-{client_name}/{ad_account_id}-{ad_account_name}/{creative_uuid}-{filename}
+	clientName := "unknown"
+	if client.Name != "" {
+		clientName = client.Name
+	}
+	imageKey := fmt.Sprintf("creatives/images/%s-%s/%s-%s/%s-%s", 
+		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.ImageName)
+	
 	imageReader := bytes.NewReader(in.ImageBytes)
 	s3URL, err := s.S3.Upload(ctx, imageKey, imageReader, "image/jpeg")
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("upload to S3: %w", err) }
 
-	token, err := s.Tokens.Resolve(client.TokenRef)
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("resolve token: %w", err) }
 
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
 
-	imageHash, err := mc.UploadImage(ctx, client.AdAccountID, in.ImageName, in.ImageBytes)
+	imageHash, err := mc.UploadImage(ctx, adAccount.AdAccountID, in.ImageName, in.ImageBytes)
 	if err != nil { return ImageCreativeOutput{}, err }
 
 	payload := map[string]any{
 		"name": in.Name,
 		"object_story_spec": map[string]any{
-			"page_id": client.PageID,
+			"page_id": adAccount.PageID,
 			"link_data": map[string]any{
 				"image_hash":  imageHash,
 				"link":        in.Link,
@@ -106,15 +122,23 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		},
 	}
 
-	creativeID, err := mc.CreateCreative(ctx, client.AdAccountID, payload)
+	creativeID, err := mc.CreateCreative(ctx, adAccount.AdAccountID, payload)
 	if err != nil { return ImageCreativeOutput{}, err }
 
 	_, err = mc.GetCreative(ctx, creativeID, []string{"id", "object_story_spec"})
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("creative created but validate failed: %w", err) }
 
+	// Buscar client para pegar client_id (legacy, para FK)
+	clientData, err := s.Store.GetClientByUUID(ctx, client.ClientUUID)
+	if err != nil {
+		return ImageCreativeOutput{}, fmt.Errorf("get client by uuid: %w", err)
+	}
+
 	creativeRecord := storage.Creative{
 		CreativeID:  creativeID,
-		ClientID:    in.ClientID,
+		ClientUUID:  client.ClientUUID,
+		AdAccountID: adAccount.AdAccountID,
+		ClientID:    clientData.ClientID, // Usar o client_id correto do banco
 		Name:        in.Name,
 		Type:        "image",
 		S3URL:       s3URL,
@@ -135,14 +159,27 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	if err := s.Sem.Acquire(ctx); err != nil { return VideoCreativeOutput{}, err }
 	defer s.Sem.Release()
 
-	client, err := s.Store.GetClient(ctx, in.ClientID)
+	// Buscar ad account pelo ID (act_123456789)
+	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
+	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("get ad account: %w", err) }
+
+	// Buscar client para pegar nome (usado no path S3)
+	client, err := s.Store.GetClientByUUID(ctx, adAccount.ClientUUID)
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("get client: %w", err) }
 
-	token, err := s.Tokens.Resolve(client.TokenRef)
+	token, err := s.Tokens.Resolve(adAccount.TokenRef)
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("resolve token: %w", err) }
 
-	videoUID := uuid.New().String()
-	videoKey := fmt.Sprintf("creatives/videos/%s/%s-%s", in.ClientID, videoUID, in.VideoName)
+	// Gerar UUID único para o creative
+	creativeUUID := uuid.New().String()
+	
+	// Nova estrutura S3: creatives/videos/{client_uuid}-{client_name}/{ad_account_id}-{ad_account_name}/{creative_uuid}-{filename}
+	clientName := "unknown"
+	if client.Name != "" {
+		clientName = client.Name
+	}
+	videoKey := fmt.Sprintf("creatives/videos/%s-%s/%s-%s/%s-%s", 
+		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.VideoName)
 	videoReader := bytes.NewReader(in.VideoBytes)
 	s3URL, err := s.S3.Upload(ctx, videoKey, videoReader, "video/mp4")
 
@@ -150,8 +187,8 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 		return VideoCreativeOutput{}, fmt.Errorf("upload video to S3: %w", err)
 	}
 
-	thumbUID := uuid.New().String()
-   	thumbKey := fmt.Sprintf("creatives/thumbnails/%s/%s-%s", in.ClientID, thumbUID, in.ThumbName)
+	thumbKey := fmt.Sprintf("creatives/thumbnails/%s-%s/%s-%s/%s-thumb-%s", 
+		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.ThumbName)
    	thumbReader := bytes.NewReader(in.ThumbBytes)
 	s3ThumbURL, err := s.S3.Upload(ctx, thumbKey, thumbReader, "image/jpeg")
 
@@ -161,16 +198,16 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
 
-   	videoID, err := mc.UploadVideo(ctx, client.AdAccountID, in.Name, in.VideoName, in.VideoBytes)
+   	videoID, err := mc.UploadVideo(ctx, adAccount.AdAccountID, in.Name, in.VideoName, in.VideoBytes)
    	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("upload video to Meta: %w", err) }
 
-	imageHash, err := mc.UploadImage(ctx, client.AdAccountID, in.ThumbName, in.ThumbBytes)
+	imageHash, err := mc.UploadImage(ctx, adAccount.AdAccountID, in.ThumbName, in.ThumbBytes)
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("upload thumb to Meta: %w", err) }
 
 	payload := map[string]any{
 		"name": in.Name,
 		"object_story_spec": map[string]any{
-			"page_id": client.PageID,
+			"page_id": adAccount.PageID,
 			"video_data": map[string]any{
 				"video_id":    videoID,
 				"image_hash":  imageHash,
@@ -186,15 +223,23 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 		},
 	}
 
-	creativeID, err := mc.CreateCreative(ctx, client.AdAccountID, payload)
+	creativeID, err := mc.CreateCreative(ctx, adAccount.AdAccountID, payload)
 	if err != nil { return VideoCreativeOutput{}, err }
 
 	_, err = mc.GetCreative(ctx, creativeID, []string{"id", "object_story_spec"})
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("creative created but validate failed: %w", err) }
 
+	// Buscar client para pegar client_id (legacy, para FK)
+	clientData, err := s.Store.GetClientByUUID(ctx, client.ClientUUID)
+	if err != nil {
+		return VideoCreativeOutput{}, fmt.Errorf("get client by uuid: %w", err)
+	}
+
 	creativeRecord := storage.Creative{
 		CreativeID:  creativeID,
-		ClientID:    in.ClientID,
+		ClientUUID:  client.ClientUUID,
+		AdAccountID: adAccount.AdAccountID,
+		ClientID:    clientData.ClientID, // Usar o client_id correto do banco
 		Name:        in.Name,
 		Type:        "video",
 		S3URL:       s3URL,
