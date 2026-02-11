@@ -227,3 +227,44 @@ func (c *Client) CreateAd(ctx context.Context, adAccountID string, payload map[s
 	if out.ID == "" { return "", errors.New("create ad: empty id") }
 	return out.ID, nil
 }
+
+type ListResponse struct {
+	Data   []map[string]any `json:"data"`
+	Paging map[string]any   `json:"paging,omitempty"`
+}
+
+func (c *Client) ListCampaigns(ctx context.Context, adAccountID string, fields []string) ([]map[string]any, error) {
+	q := url.Values{}
+	if len(fields) > 0 {
+		q.Set("fields", strings.Join(fields, ","))
+	}
+	var out ListResponse
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("%s/campaigns", Act(adAccountID)), q, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Data, nil
+}
+
+func (c *Client) ListAdSets(ctx context.Context, adAccountID string, fields []string) ([]map[string]any, error) {
+	q := url.Values{}
+	if len(fields) > 0 {
+		q.Set("fields", strings.Join(fields, ","))
+	}
+	var out ListResponse
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("%s/adsets", Act(adAccountID)), q, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Data, nil
+}
+
+func (c *Client) ListAds(ctx context.Context, adAccountID string, fields []string) ([]map[string]any, error) {
+	q := url.Values{}
+	if len(fields) > 0 {
+		q.Set("fields", strings.Join(fields, ","))
+	}
+	var out ListResponse
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("%s/ads", Act(adAccountID)), q, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Data, nil
+}
