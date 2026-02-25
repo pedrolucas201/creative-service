@@ -19,7 +19,7 @@ Este documento descreve o fluxo real do backend atual: rota HTTP -> handler -> s
 ## 2. Pipeline padrão de request
 
 1. Router recebe rota (`internal/httpapi/router.go`).
-2. Middlewares globais: `Recoverer`, `AccessLog`.
+2. Middlewares globais: `Recoverer`, `AccessLog`, `CORS`.
 3. Se auth habilitada: `AuthMiddleware` valida token Firebase e injeta identidade no context.
 4. Handler valida payload e parâmetros.
 5. Handler chama `requireAdAccountAccess` (na maioria das rotas de negócio):
@@ -50,12 +50,16 @@ Este documento descreve o fluxo real do backend atual: rota HTTP -> handler -> s
 
 - `GET /v1/clients`
 - Handler: `ListClients`
-- Banco: `ListClients`
+- Banco:
+  - com identidade: `ListClientsByUID(uid)`
+  - fallback sem identidade: `ListClients`
 - Meta: nenhum
 
 - `GET /v1/clients/{client_uuid}/ad-accounts`
 - Handler: `ListAdAccountsByClient`
-- Banco: `ListAdAccountsByClient`
+- Banco:
+  - com identidade: `ListAdAccountsByClientForUID(client_uuid, uid)`
+  - fallback sem identidade: `ListAdAccountsByClient`
 - Meta: nenhum
 
 - `GET /v1/bms/{bm_uuid}/config`
@@ -226,7 +230,7 @@ Este documento descreve o fluxo real do backend atual: rota HTTP -> handler -> s
 
 ## 6. Pontos de atenção atuais
 
+- CORS web está ativo e validado em produção (`OPTIONS /v1/clients` retornando `204` com `Access-Control-Allow-*`).
 - Há documentação antiga no repositório citando `worker`, `redis`, `jobs` e `cmd/worker`, mas esse runtime não existe no código atual.
 - `UpdateAd` e `DeleteAd` em `internal/httpapi/handlers.go` não chamam `requireAdAccountAccess`, diferente dos demais endpoints protegidos por ad account.
 - `AccessLog` não registra request/response hoje (middleware vazio).
-

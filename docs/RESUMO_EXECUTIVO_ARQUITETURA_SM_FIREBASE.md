@@ -13,6 +13,10 @@ Evoluir o backend para um modelo seguro e escalável de acesso por usuário e po
 4. Frontend autenticado:
    - login/cadastro no Firebase,
    - chamadas API com `Bearer token`.
+5. Backend web-ready:
+   - CORS habilitado para preflight e header `Authorization`.
+6. Catálogo escopado por usuário:
+   - listagens de clients/ad-accounts filtradas por `uid`.
 
 ## Diagrama (alto nível)
 
@@ -54,13 +58,15 @@ Pronto:
 - AuthZ por BM/ad_account via banco.
 - Resolução de configuração/token por BM via Secret Manager.
 - Front com login/cadastro e consumo autenticado da API.
+- CORS corrigido para frontend web (preflight `OPTIONS`).
+- Filtro de clientes e ad accounts por `uid` autenticado.
 
 Pontos pendentes recomendados:
 
 1. Aplicar/verificar autorização em 100% das rotas sensíveis.
-2. Filtrar listagens por escopo do usuário.
-3. Enforce de role (`viewer/admin/operator`) por operação.
-4. Observabilidade de 401/403/200 com `uid`, `bm_uuid`, `ad_account_id`.
+2. Enforce de role (`viewer/admin/operator`) por operação.
+3. Observabilidade de 401/403/200 com `uid`, `bm_uuid`, `ad_account_id`.
+4. Fechar gap de autorização em `PATCH/DELETE /v1/ads`.
 
 ## Risco conhecido
 
@@ -74,4 +80,4 @@ Pontos pendentes recomendados:
 - `ARQUITETURA_SM_FIREBASE_AUTORIZACAO.md`
 - `MAPEAMENTO_TECNICO_END_TO_END.md`
 - `RUNBOOK_FINAL_BM_PROVISIONING.md`
-
+- `RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md`

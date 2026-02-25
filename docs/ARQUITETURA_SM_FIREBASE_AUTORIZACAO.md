@@ -93,6 +93,20 @@ Sem permissão:
 
 - `403 forbidden_for_ad_account`.
 
+## 3.3 CORS para frontend Web
+
+Com o frontend em `localhost` e backend em Cloud Run, a API passou a responder preflight (`OPTIONS`) corretamente:
+
+- `Access-Control-Allow-Origin` para origens permitidas
+- `Access-Control-Allow-Headers` com `Authorization, Content-Type`
+- `Access-Control-Allow-Methods` com `GET, POST, PATCH, DELETE, OPTIONS`
+- `204 No Content` para preflight válido
+
+Arquivos:
+
+- `internal/httpapi/middleware.go`
+- `internal/httpapi/router.go`
+
 ---
 
 ## 4. Backend: resolução de configuração via BM + Secret Manager
@@ -209,11 +223,14 @@ Pronto:
 - Resolução automática de config/token por BM via Secret Manager.
 - Front consumindo API com token.
 - Cadastro de usuário no frontend.
+- CORS web (preflight `OPTIONS`) corrigido e validado em produção.
+- Listagens por escopo de usuário:
+  - `GET /v1/clients` usa `uid` autenticado.
+  - `GET /v1/clients/{client_uuid}/ad-accounts` usa `uid` autenticado.
 
 Pendente recomendado:
 
 - Revisar cobertura de `requireAdAccountAccess` em todos os handlers.
-- Filtrar listagens por escopo do usuário (não apenas operações por ad_account).
 - Enforce de role (`viewer/admin/...`) por tipo de operação.
 - Observabilidade/auditoria (uid, bm_uuid, ad_account_id, status).
 
@@ -225,6 +242,7 @@ Pendente recomendado:
   - `MAPEAMENTO_TECNICO_END_TO_END.md`
 - Runbook de provisionamento BM + authz:
   - `RUNBOOK_FINAL_BM_PROVISIONING.md`
+- Relatório consolidado de avanço:
+  - `RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md`
 - Arquitetura legada/histórica:
   - `explicacao_arquitetura.md` (contém partes antigas, não 100% alinhadas ao runtime atual)
-

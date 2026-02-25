@@ -46,6 +46,10 @@ GET /v1/health
   - [docs/RUNBOOK_FINAL_BM_PROVISIONING.md](docs/RUNBOOK_FINAL_BM_PROVISIONING.md)
 - Resumo executivo:
   - [docs/RESUMO_EXECUTIVO_ARQUITETURA_SM_FIREBASE.md](docs/RESUMO_EXECUTIVO_ARQUITETURA_SM_FIREBASE.md)
+- Relatorio consolidado de avancos:
+  - [docs/RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md](docs/RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md)
+- FAQ de reuniao:
+  - [docs/FAQ_REUNIAO_FIREBASE_SM.md](docs/FAQ_REUNIAO_FIREBASE_SM.md)
 
 ## Arquivos legados
 
@@ -54,4 +58,3 @@ Documentos antigos foram movidos para:
 - `docs/archive/`
 
 Eles podem conter contexto histórico útil, mas não são a fonte principal da arquitetura atual.
-

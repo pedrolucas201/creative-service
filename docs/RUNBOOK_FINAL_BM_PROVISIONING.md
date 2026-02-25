@@ -137,6 +137,24 @@ DO UPDATE SET role = EXCLUDED.role, is_active = EXCLUDED.is_active, updated_at =
 COMMIT;
 ```
 
+Se o usuário já existe no Firebase e você só quer conceder acesso a uma BM (sem depender de email), use:
+
+```sql
+BEGIN;
+
+INSERT INTO app_users (uid, email)
+VALUES ('<FIREBASE_UID>', NULL)
+ON CONFLICT (uid)
+DO UPDATE SET updated_at = now();
+
+INSERT INTO user_bm_access (uid, bm_uuid, role, is_active)
+VALUES ('<FIREBASE_UID>', '<BM_UUID_AQUI>'::uuid, 'admin', TRUE)
+ON CONFLICT (uid, bm_uuid)
+DO UPDATE SET role = EXCLUDED.role, is_active = TRUE, updated_at = now();
+
+COMMIT;
+```
+
 ## 5) Testes PowerShell (401/200/403)
 
 Variáveis:
@@ -202,6 +220,17 @@ Invoke-RestMethod -Method POST -Uri "$BASE/v1/campaigns" `
 
 Esperado: `403` com `forbidden_for_ad_account`.
 
+Teste CORS web (preflight):
+
+```powershell
+curl.exe -i -X OPTIONS "$BASE/v1/clients" `
+  -H "Origin: http://localhost:5016" `
+  -H "Access-Control-Request-Method: GET" `
+  -H "Access-Control-Request-Headers: authorization"
+```
+
+Esperado: `204` + headers `Access-Control-Allow-*`.
+
 ## 6) Critério de pronto
 
 - BM criada e `is_active=true`
@@ -214,4 +243,3 @@ Esperado: `403` com `forbidden_for_ad_account`.
 ## 7) Alerta antes de carimbar produção
 
 No código atual, `PATCH /v1/ads/{ad_id}` e `DELETE /v1/ads/{ad_id}` ainda não aplicam `requireAdAccountAccess` como os demais endpoints. Corrigir isso evita bypass de autorização por ad account nessas duas rotas.
-
