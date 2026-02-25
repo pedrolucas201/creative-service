@@ -399,7 +399,7 @@ Procurar por:
 ### **8.1 Modificar URL:**
 
 ```dart
-// C:\Users\PC\StudioProjects\untitled\lib\config\api_config.dart
+// C:\Users\PC\StudioProjects\flutter\lib\config\api_config.dart
 
 class ApiConfig {
   static const String baseUrl = 'https://creative-service-backend-xxxxx-ue.a.run.app';
@@ -412,7 +412,7 @@ class ApiConfig {
 ### **8.2 Rebuild Flutter:**
 
 ```powershell
-cd C:\Users\PC\StudioProjects\untitled
+cd C:\Users\PC\StudioProjects\flutter
 
 flutter build windows --release
 ```

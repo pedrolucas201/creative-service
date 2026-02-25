@@ -211,7 +211,7 @@ class ApiConfig {
 
 **Rebuild Flutter:**
 ```bash
-cd C:\Users\PC\StudioProjects\untitled
+cd C:\Users\PC\StudioProjects\flutter
 flutter build windows --release
 ```
 

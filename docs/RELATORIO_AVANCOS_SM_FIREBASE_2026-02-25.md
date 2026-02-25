@@ -181,4 +181,4 @@ Pendente recomendado:
 - Mapeamento tecnico: `docs/MAPEAMENTO_TECNICO_END_TO_END.md`
 - Runbook de provisioning: `docs/RUNBOOK_FINAL_BM_PROVISIONING.md`
 - FAQ para reunioes: `docs/FAQ_REUNIAO_FIREBASE_SM.md`
-- Status do frontend (repo Flutter): `C:\Users\PC\StudioProjects\untitled\docs\STATUS_ATUAL_FRONTEND_FIREBASE_2026-02-25.md`
+- Status do frontend (repo Flutter): `C:\Users\PC\StudioProjects\flutter\docs\STATUS_ATUAL_FRONTEND_FIREBASE_2026-02-25.md`

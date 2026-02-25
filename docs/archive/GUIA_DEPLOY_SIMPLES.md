@@ -254,7 +254,7 @@ Se der erro, veja **Logs**:
 
 ### 6.1 Modificar URL da API
 
-**Arquivo:** `C:\Users\PC\StudioProjects\untitled\lib\config\api_config.dart`
+**Arquivo:** `C:\Users\PC\StudioProjects\flutter\lib\config\api_config.dart`
 
 **ANTES:**
 ```dart
@@ -274,7 +274,7 @@ class ApiConfig {
 ### 6.2 Rebuild Flutter
 
 ```powershell
-cd C:\Users\PC\StudioProjects\untitled
+cd C:\Users\PC\StudioProjects\flutter
 
 flutter build windows --release
 ```

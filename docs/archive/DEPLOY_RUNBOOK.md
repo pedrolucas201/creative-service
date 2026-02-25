@@ -80,7 +80,7 @@ curl.exe -X POST "https://creative-backend-663062637696.us-central1.run.app/v1/c
   -F "message=teste producao cloud run" `
   -F "headline=Teste" `
   -F "description=Teste" `
-  -F "image=@C:\Users\PC\Downloads\creative-service\test.jpg"
+  -F "image=@C:\Users\PC\Downloads\creative-service\testdata\fixtures\test.jpg"
 ```
 
 Esperado:

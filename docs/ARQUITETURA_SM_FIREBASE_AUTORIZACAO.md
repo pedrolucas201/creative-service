@@ -156,7 +156,7 @@ Persistência adicional:
 
 Repositório frontend:
 
-- `C:\Users\PC\StudioProjects\untitled`
+- `C:\Users\PC\StudioProjects\flutter`
 
 Arquivos principais:
 

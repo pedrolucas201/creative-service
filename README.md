@@ -38,6 +38,8 @@ GET /v1/health
 
 ## Documentação
 
+- Índice da documentação:
+  - [docs/README.md](docs/README.md)
 - Arquitetura consolidada:
   - [docs/ARQUITETURA_SM_FIREBASE_AUTORIZACAO.md](docs/ARQUITETURA_SM_FIREBASE_AUTORIZACAO.md)
 - Mapa técnico end-to-end:
