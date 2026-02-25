@@ -88,7 +88,17 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListClients(w http.ResponseWriter, r *http.Request) {
-	clients, err := h.Store.ListClients(r.Context())
+	identity, hasIdentity := auth.IdentityFromContext(r.Context())
+
+	var (
+		clients []storage.Client
+		err     error
+	)
+	if hasIdentity && identity != nil && identity.UID != "" {
+		clients, err = h.Store.ListClientsByUID(r.Context(), identity.UID)
+	} else {
+		clients, err = h.Store.ListClients(r.Context())
+	}
 	if err != nil {
 		writeErr(w, 500, "failed to list clients")
 		return
@@ -414,7 +424,17 @@ func (h *Handler) ListAdAccountsByClient(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	adAccounts, err := h.Store.ListAdAccountsByClient(r.Context(), clientUUID)
+	identity, hasIdentity := auth.IdentityFromContext(r.Context())
+
+	var (
+		adAccounts []storage.AdAccount
+		err        error
+	)
+	if hasIdentity && identity != nil && identity.UID != "" {
+		adAccounts, err = h.Store.ListAdAccountsByClientForUID(r.Context(), clientUUID, identity.UID)
+	} else {
+		adAccounts, err = h.Store.ListAdAccountsByClient(r.Context(), clientUUID)
+	}
 	if err != nil {
 		writeErr(w, 500, "failed to list ad accounts")
 		return

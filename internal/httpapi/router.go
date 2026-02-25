@@ -42,7 +42,7 @@ type RouterOptions struct {
 
 func NewRouter(h Handlers, opts RouterOptions) http.Handler {
 	r := chi.NewRouter()
-	r.Use(Recoverer, AccessLog)
+	r.Use(Recoverer, AccessLog, CORS)
 
 	r.Get("/v1/health", h.Health)
 

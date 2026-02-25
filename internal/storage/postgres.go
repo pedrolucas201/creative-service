@@ -84,6 +84,39 @@ func (s *Store) ListClients(ctx context.Context) ([]Client, error) {
 	return clients, nil
 }
 
+func (s *Store) ListClientsByUID(ctx context.Context, uid string) ([]Client, error) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT DISTINCT c.client_uuid, c.client_id, c.name, c.email, c.deleted_at, c.created_at, c.updated_at
+		FROM clients c
+		JOIN ad_accounts aa ON aa.client_uuid = c.client_uuid
+		JOIN user_bm_access uba ON uba.bm_uuid = aa.bm_uuid
+		WHERE c.deleted_at IS NULL
+		  AND aa.deleted_at IS NULL
+		  AND uba.uid = $1
+		  AND uba.is_active = TRUE
+		ORDER BY c.name
+	`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var clients []Client
+	for rows.Next() {
+		var c Client
+		err := rows.Scan(&c.ClientUUID, &c.ClientID, &c.Name, &c.Email, &c.DeletedAt, &c.CreatedAt, &c.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		clients = append(clients, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return clients, nil
+}
+
 type Creative struct {
 	CreativeID      string          `json:"creative_id"`
 	ClientUUID      string          `json:"client_uuid"`
@@ -239,6 +272,42 @@ func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) (
 		var aa AdAccount
 		err := rows.Scan(
 			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID, 
+			&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, aa)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return accounts, nil
+}
+
+func (s *Store) ListAdAccountsByClientForUID(ctx context.Context, clientUUID, uid string) ([]AdAccount, error) {
+	rows, err := s.DB.Query(ctx, `
+		SELECT aa.ad_account_id, aa.client_uuid, aa.bm_uuid, aa.ad_account_name, aa.page_id, aa.token_ref,
+			aa.is_active, aa.deleted_at, aa.created_at, aa.updated_at
+		FROM ad_accounts aa
+		JOIN user_bm_access uba ON uba.bm_uuid = aa.bm_uuid
+		WHERE aa.client_uuid = $1
+		  AND aa.deleted_at IS NULL
+		  AND uba.uid = $2
+		  AND uba.is_active = TRUE
+		ORDER BY aa.ad_account_name
+	`, clientUUID, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var accounts []AdAccount
+	for rows.Next() {
+		var aa AdAccount
+		err := rows.Scan(
+			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID,
 			&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 		)
 		if err != nil {
