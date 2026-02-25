@@ -10,19 +10,21 @@ services:
       META_BASE_URL: "https://graph.facebook.com"
       META_API_VERSION: "v24.0"
       HTTP_TIMEOUT: "45s"
-      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/creatives?sslmode=disable"
       MAX_CONCURRENCY: "6"
       TOKEN_FRANCISCO: ${TOKEN_FRANCISCO}
       TOKEN_CONTIGENCIA01: ${TOKEN_CONTIGENCIA01}
+      # Storage provider: "s3" ou "gcs"
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-s3}
+      # AWS S3 (se STORAGE_PROVIDER=s3)
+      DATABASE_URL: ${DATABASE_URL}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      # GCP (se STORAGE_PROVIDER=gcs)
+      GCS_BUCKET: ${GCS_BUCKET}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GCS_CREDENTIALS_JSON: ${GCS_CREDENTIALS_JSON}
 
-    depends_on: [postgres]
-
-
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_DB: creatives
-    ports: ["5433:5432"]
-
+# PostgreSQL removido conforme pedido do chefe
+# Agora usa Cloud SQL em produção

@@ -7,8 +7,8 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"creative-service/internal/bm"
 	"creative-service/internal/meta"
-	"creative-service/internal/s3"
 	"creative-service/internal/secrets"
 	"creative-service/internal/storage"
 
@@ -17,8 +17,9 @@ import (
 
 type CreativeSyncService struct {
 	Store  *storage.Store
+	BM     *bm.Service
 	Tokens secrets.Resolver
-	S3 *s3.Client
+	Storage storage.StorageClient // Interface genérica (S3 ou GCS)
 
 	BaseURL     string
 	APIVersion  string
@@ -95,10 +96,14 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.ImageName)
 	
 	imageReader := bytes.NewReader(in.ImageBytes)
-	url, err := s.S3.Upload(ctx, imageKey, imageReader, "image/jpeg")
-	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("upload to S3: %w", err) }
+	imagePath, err := s.Storage.Upload(ctx, imageKey, imageReader, "image/jpeg")
+	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("upload to storage: %w", err) }
+	imageURL := s.Storage.GetURL(imagePath)
 
-	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	bmCfg, err := s.BM.GetBMConfigByAdAccountID(ctx, adAccount.AdAccountID)
+	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("get bm config: %w", err) }
+
+	token, err := s.Tokens.Resolve(bmCfg.TokenRef)
 	if err != nil { return ImageCreativeOutput{}, fmt.Errorf("resolve token: %w", err) }
 
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
@@ -109,7 +114,7 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 	payload := map[string]any{
 		"name": in.Name,
 		"object_story_spec": map[string]any{
-			"page_id": adAccount.PageID,
+				"page_id": bmCfg.PageID,
 			"link_data": map[string]any{
 				"image_hash":  imageHash,
 				"link":        in.Link,
@@ -132,7 +137,7 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		AdAccountID: adAccount.AdAccountID,
 		Name:        in.Name,
 		Type:        "image",
-		URL:         url,
+		URL:         imageURL,
 		ThumbURL:    nil,
 		Link:        &in.Link,
 		Message:     &in.Message,
@@ -143,7 +148,7 @@ func (s *CreativeSyncService) CreateImageCreative(ctx context.Context, in ImageC
 		return ImageCreativeOutput{}, fmt.Errorf("save creative to DB: %w", err)
 	}
 
-	return ImageCreativeOutput{ImageHash: imageHash, CreativeID: creativeID, URL: url, Validated: true}, nil
+	return ImageCreativeOutput{ImageHash: imageHash, CreativeID: creativeID, URL: imageURL, Validated: true}, nil
 }
 
 func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoCreativeInput) (VideoCreativeOutput, error) {
@@ -158,7 +163,10 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	client, err := s.Store.GetClientByUUID(ctx, adAccount.ClientUUID)
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("get client: %w", err) }
 
-	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	bmCfg, err := s.BM.GetBMConfigByAdAccountID(ctx, adAccount.AdAccountID)
+	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("get bm config: %w", err) }
+
+	token, err := s.Tokens.Resolve(bmCfg.TokenRef)
 	if err != nil { return VideoCreativeOutput{}, fmt.Errorf("resolve token: %w", err) }
 
 	// Gerar UUID único para o creative
@@ -172,20 +180,22 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	videoKey := fmt.Sprintf("creatives/videos/%s-%s/%s-%s/%s-%s", 
 		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.VideoName)
 	videoReader := bytes.NewReader(in.VideoBytes)
-	videoURL, err := s.S3.Upload(ctx, videoKey, videoReader, "video/mp4")
+	videoPath, err := s.Storage.Upload(ctx, videoKey, videoReader, "video/mp4")
 
 	if err != nil {
-		return VideoCreativeOutput{}, fmt.Errorf("upload video to S3: %w", err)
+		return VideoCreativeOutput{}, fmt.Errorf("upload video to storage: %w", err)
 	}
+	videoURL := s.Storage.GetURL(videoPath)
 
 	thumbKey := fmt.Sprintf("creatives/thumbnails/%s-%s/%s-%s/%s-thumb-%s", 
 		client.ClientUUID, clientName, adAccount.AdAccountID, adAccount.AdAccountName, creativeUUID, in.ThumbName)
    	thumbReader := bytes.NewReader(in.ThumbBytes)
-	thumbURL, err := s.S3.Upload(ctx, thumbKey, thumbReader, "image/jpeg")
+	thumbPath, err := s.Storage.Upload(ctx, thumbKey, thumbReader, "image/jpeg")
 
 	if err != nil {
-		return VideoCreativeOutput{}, fmt.Errorf("upload thumb to S3: %w", err)
+		return VideoCreativeOutput{}, fmt.Errorf("upload thumb to storage: %w", err)
 	}
+	thumbURL := s.Storage.GetURL(thumbPath)
 
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
 
@@ -198,7 +208,7 @@ func (s *CreativeSyncService) CreateVideoCreative(ctx context.Context, in VideoC
 	payload := map[string]any{
 		"name": in.Name,
 		"object_story_spec": map[string]any{
-			"page_id": adAccount.PageID,
+			"page_id": bmCfg.PageID,
 			"video_data": map[string]any{
 				"video_id":    videoID,
 				"image_hash":  imageHash,

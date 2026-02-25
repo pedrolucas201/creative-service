@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"creative-service/internal/auth"
+	"creative-service/internal/bm"
 	"creative-service/internal/config"
 	"creative-service/internal/httpapi"
 	"creative-service/internal/s3"
@@ -14,54 +16,105 @@ import (
 	"creative-service/internal/service"
 	"creative-service/internal/storage"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/joho/godotenv"
 )
 
 func runMigrations(dbURL string) error {
-       m, err := migrate.New(
-           "file://internal/storage/migrations",
-           dbURL,
-       )
-       if err != nil { return err }
-       return m.Up()
-   }
+	m, err := migrate.New(
+		"file://internal/storage/migrations",
+		dbURL,
+	)
+	if err != nil {
+		return err
+	}
+	return m.Up()
+}
 
 func main() {
 	_ = godotenv.Load()
-	
-	cfg := config.Load()
-	if cfg.DatabaseURL == "" { log.Fatal("DATABASE_URL is required") }
 
-	if err := runMigrations(cfg.DatabaseURL); err != nil {
-		log.Printf("Migration warning: %v", err)
+	cfg := config.Load()
+	if cfg.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+	if cfg.GCPProjectID == "" {
+		log.Fatal("GCP_PROJECT_ID is required")
+	}
+
+	if cfg.RunMigrations {
+		if err := runMigrations(cfg.DatabaseURL); err != nil {
+			log.Printf("Migration warning: %v", err)
+		}
+	} else {
+		log.Println("Skipping migrations at startup (RUN_MIGRATIONS=false)")
 	}
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer pool.Close()
 
 	st := storage.New(pool)
-	s3Client, err := s3.New(ctx, s3.Config{
-		BucketName:      cfg.S3BucketName,
-		Region:          cfg.S3Region,
-		AccessKeyID:     cfg.S3AccessKeyID,
-		SecretAccessKey: cfg.S3SecretAccessKey,
-	})
+
+	smResolver, err := secrets.NewSMResolver(ctx, cfg.GCPProjectID, 2*time.Minute)
 	if err != nil {
-		log.Fatal("failed to create S3 client: ", err)
+		log.Fatal("failed to create SMResolver: ", err)
 	}
-	log.Println("S3 client initialized for bucket:", cfg.S3BucketName)
+	defer smResolver.Close()
+
+	bmService := &bm.Service{
+		DB: pool,
+		SM: smResolver,
+	}
+
+	// Criar storage client baseado no provider (S3 ou GCS)
+	var storageClient storage.StorageClient
+	
+	if cfg.StorageProvider == "gcs" {
+		log.Println("Initializing GCS client...")
+		gcsClient, err := storage.NewGCSClient(ctx, storage.GCSConfig{
+			BucketName:      cfg.GCSBucketName,
+			ProjectID:       cfg.GCPProjectID,
+			CredentialsJSON: cfg.GCSCredentialsJSON,
+		})
+		if err != nil {
+			log.Fatal("failed to create GCS client: ", err)
+		}
+		defer gcsClient.Close()
+		storageClient = gcsClient
+		log.Println("GCS client initialized for bucket:", cfg.GCSBucketName)
+	} else {
+		log.Println("Initializing S3 client...")
+		s3Client, err := s3.New(ctx, s3.Config{
+			BucketName:      cfg.S3BucketName,
+			Region:          cfg.S3Region,
+			AccessKeyID:     cfg.S3AccessKeyID,
+			SecretAccessKey: cfg.S3SecretAccessKey,
+		})
+		if err != nil {
+			log.Fatal("failed to create S3 client: ", err)
+		}
+		storageClient = s3Client
+		log.Println("S3 client initialized for bucket:", cfg.S3BucketName)
+	}
 
 	sem := service.NewSemaphore(cfg.MaxConcurrency)
-	tokens := secrets.EnvResolver{}
+	tokens := secrets.MultiResolver{
+		Env: secrets.EnvResolver{},
+		SM:  smResolver,
+	}
 
 	creativeSync := &service.CreativeSyncService{
 		Store: st,
+		BM: bmService,
 		Tokens: tokens,
-		S3: s3Client,
+		Storage: storageClient, // Agora usa interface genérica
 		BaseURL: cfg.BaseURL,
 		APIVersion: cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,
@@ -70,6 +123,7 @@ func main() {
 
 	campaigns := &service.CampaignService{
 		Store: st,
+		BM: bmService,
 		Tokens: tokens,
 		BaseURL: cfg.BaseURL,
 		APIVersion: cfg.APIVersion,
@@ -79,6 +133,7 @@ func main() {
 
 	adsets := &service.AdSetService{
 		Store: st,
+		BM: bmService,
 		Tokens: tokens,
 		BaseURL: cfg.BaseURL,
 		APIVersion: cfg.APIVersion,
@@ -88,6 +143,7 @@ func main() {
 
 	ads := &service.AdService{
 		Store: st,
+		BM: bmService,
 		Tokens: tokens,
 		BaseURL: cfg.BaseURL,
 		APIVersion: cfg.APIVersion,
@@ -101,8 +157,26 @@ func main() {
 		Campaigns: campaigns,
 		AdSets: adsets,
 		Ads: ads,
+		BM: bmService,
 	}
-	router := httpapi.NewRouter(h)
+
+	var verifier auth.Verifier
+	if cfg.RequireAuth {
+		fv, err := auth.NewFirebaseVerifier(ctx, cfg.FirebaseProjectID)
+		if err != nil {
+			log.Fatal("failed to create firebase verifier: ", err)
+		}
+		verifier = fv
+		log.Println("Firebase auth enabled")
+	} else {
+		log.Println("Firebase auth disabled (AUTH_REQUIRED=false)")
+	}
+
+	router := httpapi.NewRouter(h, httpapi.RouterOptions{
+		RequireAuth:  cfg.RequireAuth,
+		AuthVerifier: verifier,
+		AppUserStore: st,
+	})
 
 	server := &http.Server{
 		Addr: cfg.Addr,

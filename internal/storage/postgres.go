@@ -26,6 +26,7 @@ type Client struct {
 type AdAccount struct {
 	AdAccountID   string     `json:"ad_account_id"` // PK: act_123456789 (Meta ID)
 	ClientUUID    string     `json:"client_uuid"`
+	BMUUID        *string    `json:"bm_uuid,omitempty"`
 	AdAccountName string     `json:"ad_account_name"`
 	PageID        string     `json:"page_id"`
 	TokenRef      string     `json:"token_ref"`
@@ -208,12 +209,12 @@ func (s *Store) SoftDeleteCreative(ctx context.Context, creativeID string) error
 func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount, error) {
 	var aa AdAccount
 	err := s.DB.QueryRow(ctx, `
-		SELECT ad_account_id, client_uuid, ad_account_name, page_id, token_ref, 
+		SELECT ad_account_id, client_uuid, bm_uuid, ad_account_name, page_id, token_ref, 
 			is_active, deleted_at, created_at, updated_at
 		FROM ad_accounts 
 		WHERE ad_account_id = $1 AND deleted_at IS NULL
 	`, adAccountID).Scan(
-		&aa.AdAccountID, &aa.ClientUUID, &aa.AdAccountName, &aa.PageID, 
+		&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID, 
 		&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 	)
 	return aa, err
@@ -222,7 +223,7 @@ func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount
 // ListAdAccountsByClient lista todas as ad accounts de um cliente
 func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) ([]AdAccount, error) {
 	rows, err := s.DB.Query(ctx, `
-		SELECT ad_account_id, client_uuid, ad_account_name, page_id, token_ref, 
+		SELECT ad_account_id, client_uuid, bm_uuid, ad_account_name, page_id, token_ref, 
 			is_active, deleted_at, created_at, updated_at
 		FROM ad_accounts 
 		WHERE client_uuid = $1 AND deleted_at IS NULL
@@ -237,7 +238,7 @@ func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) (
 	for rows.Next() {
 		var aa AdAccount
 		err := rows.Scan(
-			&aa.AdAccountID, &aa.ClientUUID, &aa.AdAccountName, &aa.PageID, 
+			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID, 
 			&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 		)
 		if err != nil {
@@ -255,9 +256,9 @@ func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) (
 // CreateAdAccount cria uma nova ad account
 func (s *Store) CreateAdAccount(ctx context.Context, aa AdAccount) error {
 	_, err := s.DB.Exec(ctx, `
-		INSERT INTO ad_accounts(ad_account_id, client_uuid, ad_account_name, page_id, token_ref, is_active)
-		VALUES($1, $2, $3, $4, $5, $6)
-	`, aa.AdAccountID, aa.ClientUUID, aa.AdAccountName, aa.PageID, aa.TokenRef, aa.IsActive)
+		INSERT INTO ad_accounts(ad_account_id, client_uuid, bm_uuid, ad_account_name, page_id, token_ref, is_active)
+		VALUES($1, $2, $3, $4, $5, $6, $7)
+	`, aa.AdAccountID, aa.ClientUUID, aa.BMUUID, aa.AdAccountName, aa.PageID, aa.TokenRef, aa.IsActive)
 	return err
 }
 
@@ -277,4 +278,30 @@ func (s *Store) SoftDeleteAdAccount(ctx context.Context, adAccountID string) err
 		return fmt.Errorf("ad account not found or already deleted: %s", adAccountID)
 	}
 	return nil
+}
+
+func (s *Store) EnsureAppUser(ctx context.Context, uid, email string) error {
+	_, err := s.DB.Exec(ctx, `
+		INSERT INTO app_users(uid, email)
+		VALUES($1, $2)
+		ON CONFLICT (uid)
+		DO UPDATE SET email = EXCLUDED.email, updated_at = now()
+	`, uid, email)
+	return err
+}
+
+func (s *Store) UserCanAccessAdAccount(ctx context.Context, uid, adAccountID string) (bool, error) {
+	var ok bool
+	err := s.DB.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM user_bm_access uba
+			JOIN ad_accounts aa ON aa.bm_uuid = uba.bm_uuid
+			WHERE uba.uid = $1
+			  AND uba.is_active = TRUE
+			  AND aa.ad_account_id = $2
+			  AND aa.deleted_at IS NULL
+		)
+	`, uid, adAccountID).Scan(&ok)
+	return ok, err
 }

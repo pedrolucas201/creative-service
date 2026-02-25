@@ -1,0 +1,88 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/maxScale: '20'
+    run.googleapis.com/urls: '["https://creative-backend-663062637696.us-central1.run.app","https://creative-backend-shucfg3brq-uc.a.run.app"]'
+  labels:
+    cloud.googleapis.com/location: us-central1
+  name: creative-backend
+  namespace: '663062637696'
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '20'
+        run.googleapis.com/client-name: gcloud
+        run.googleapis.com/client-version: 556.0.0
+        run.googleapis.com/cloudsql-instances: rogakronos:us-central1:febe
+        run.googleapis.com/startup-cpu-boost: 'true'
+      labels:
+        client.knative.dev/nonce: xqemaqzfeq
+        run.googleapis.com/startupProbeType: Default
+    spec:
+      containerConcurrency: 80
+      containers:
+      - env:
+        - name: ADDR
+          value: :8080
+        - name: STORAGE_PROVIDER
+          value: gcs
+        - name: GCS_BUCKET
+          value: meta-service-storage
+        - name: GCP_PROJECT_ID
+          value: rogakronos
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: creative-prod-database-url
+        - name: META_BASE_URL
+          value: https://graph.facebook.com
+        - name: META_API_VERSION
+          value: v24.0
+        - name: HTTP_TIMEOUT
+          value: 45s
+        - name: MAX_CONCURRENCY
+          value: '6'
+        - name: RUN_MIGRATIONS
+          value: 'false'
+        - name: TOKEN_FRANCISCO
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: creative-prod-token-francisco
+        - name: TOKEN_CONTINGENCIA01
+          value: EAAMcbtFilIUBQvbzqBUtaP2PHUKbUQWSLUgZBJ0MeOSNyRIiJ3HSEZAZCugfis09L1P6LKq2UryXZBARcuLtZCr0MLQtyASH1BBTOsKM1I494Q6pbSYZBoiSBbszC2Jw5ZAy70uarj48fKxGpoP19vS1iPhij3kbHFLvaPd5ITIKhWg2tA7U8eh3RT92WdvdLeHawZDZD
+        - name: TOKEN_DANILO_01
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: creative-prod-token-danilo-01
+        - name: META
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: meta-prod
+        image: us-central1-docker.pkg.dev/rogakronos/titan-repo/backend:devgomesss-20260218-01
+        ports:
+        - containerPort: 8080
+          name: http1
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        startupProbe:
+          failureThreshold: 1
+          periodSeconds: 240
+          tcpSocket:
+            port: 8080
+          timeoutSeconds: 240
+      serviceAccountName: creative-service-runtime@rogakronos.iam.gserviceaccount.com
+      timeoutSeconds: 300
+  traffic:
+  - latestRevision: true
+    percent: 100
+

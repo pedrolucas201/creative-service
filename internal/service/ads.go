@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"creative-service/internal/bm"
 	"creative-service/internal/meta"
 	"creative-service/internal/secrets"
 	"creative-service/internal/storage"
@@ -12,6 +13,7 @@ import (
 
 type AdService struct {
 	Store  *storage.Store
+	BM     *bm.Service
 	Tokens secrets.Resolver
 
 	BaseURL     string
@@ -45,7 +47,12 @@ func (s *AdService) CreateAd(ctx context.Context, in CreateAdInput) (CreateAdOut
 		return CreateAdOutput{}, fmt.Errorf("get ad account: %w", err)
 	}
 
-	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	bmCfg, err := s.BM.GetBMConfigByAdAccountID(ctx, adAccount.AdAccountID)
+	if err != nil {
+		return CreateAdOutput{}, fmt.Errorf("get bm config: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(bmCfg.TokenRef)
 	if err != nil {
 		return CreateAdOutput{}, fmt.Errorf("resolve token: %w", err)
 	}
@@ -95,7 +102,12 @@ func (s *AdService) ListAds(ctx context.Context, in ListAdsInput) (ListAdsOutput
 		return ListAdsOutput{}, fmt.Errorf("get ad account: %w", err)
 	}
 
-	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	bmCfg, err := s.BM.GetBMConfigByAdAccountID(ctx, adAccount.AdAccountID)
+	if err != nil {
+		return ListAdsOutput{}, fmt.Errorf("get bm config: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(bmCfg.TokenRef)
 	if err != nil {
 		return ListAdsOutput{}, fmt.Errorf("resolve token: %w", err)
 	}
@@ -155,7 +167,12 @@ func (s *AdService) UpdateAd(ctx context.Context, in UpdateAdInput) error {
 		return fmt.Errorf("get ad account: %w", err)
 	}
 
-	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	bmCfg, err := s.BM.GetBMConfigByAdAccountID(ctx, adAccount.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get bm config: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(bmCfg.TokenRef)
 	if err != nil {
 		return fmt.Errorf("resolve token: %w", err)
 	}
@@ -195,7 +212,12 @@ func (s *AdService) DeleteAd(ctx context.Context, in DeleteAdInput) error {
 		return fmt.Errorf("get ad account: %w", err)
 	}
 
-	token, err := s.Tokens.Resolve(adAccount.TokenRef)
+	bmCfg, err := s.BM.GetBMConfigByAdAccountID(ctx, adAccount.AdAccountID)
+	if err != nil {
+		return fmt.Errorf("get bm config: %w", err)
+	}
+
+	token, err := s.Tokens.Resolve(bmCfg.TokenRef)
 	if err != nil {
 		return fmt.Errorf("resolve token: %w", err)
 	}

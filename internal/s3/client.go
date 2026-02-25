@@ -65,6 +65,9 @@ func (c *Client) Upload(ctx context.Context, key string, data io.Reader, content
 }
 	
 func (c *Client) GetURL(key string) string {
+	if len(key) > 0 && key[0] == '/' {
+		key = key[1:]
+	}
 	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", c.BucketName, c.Region, key)
 }
 
