@@ -79,6 +79,14 @@ Arquivos principais:
 - Web com magic link e retorno por URL.
 - Windows desktop com fallback para email/senha.
 
+### 1.7 Publicacao Web e compatibilidade de upload
+
+- Frontend publicado no Firebase Hosting (`glineui.web.app`).
+- Correcao de upload para funcionar em duas plataformas:
+  - Windows: multipart por `path`.
+  - Web: multipart por `bytes` (sem `dart:io`).
+- Erro `Unsupported operation: MultipartFile is only supported where dart:io is available` resolvido.
+
 ---
 
 ## 2) Mudancas de banco de dados
@@ -127,6 +135,8 @@ Arquivo:
   - operacao ainda funcionando com token vindo do Secret Manager.
 - CORS em producao:
   - `OPTIONS /v1/clients` retornando `204 No Content` com headers CORS.
+- Hosting em producao:
+  - frontend acessivel em `https://glineui.web.app`.
 
 ---
 
@@ -138,6 +148,7 @@ Arquivo:
 4. Web em branco por `firebase_options.dart` sem configuracao de Web.
 5. Front web sem dados por preflight `OPTIONS` retornando `405` (corrigido com middleware CORS no router).
 6. Filtro mostrando contas sem permissao (corrigido com listagem escopada por UID).
+7. Upload web quebrando por uso de `dart:io` no multipart (corrigido com fluxo por bytes no Web).
 
 ---
 
@@ -151,6 +162,8 @@ Concluido:
 - CORS para web.
 - Listagem de clientes/ad accounts por UID.
 - Front com login/cadastro e consumo autenticado da API.
+- Front publicado no Firebase Hosting.
+- Upload de imagem/video funcional em Windows e Web.
 
 Pendente recomendado:
 
@@ -168,3 +181,4 @@ Pendente recomendado:
 - Mapeamento tecnico: `docs/MAPEAMENTO_TECNICO_END_TO_END.md`
 - Runbook de provisioning: `docs/RUNBOOK_FINAL_BM_PROVISIONING.md`
 - FAQ para reunioes: `docs/FAQ_REUNIAO_FIREBASE_SM.md`
+- Status do frontend (repo Flutter): `C:\Users\PC\StudioProjects\untitled\docs\STATUS_ATUAL_FRONTEND_FIREBASE_2026-02-25.md`

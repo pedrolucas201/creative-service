@@ -91,3 +91,19 @@ Front envia token -> backend valida Firebase -> sincroniza usuario -> valida ace
 - `internal/storage/postgres.go`
 - `internal/storage/migrations/007_link_ad_accounts_to_bm.sql`
 - `internal/storage/migrations/008_user_bm_access.sql`
+
+## 18) Front ja esta publicado em producao web?
+
+Sim. Publicado no Firebase Hosting em:
+
+- `https://glineui.web.app`
+- `https://glineui.firebaseapp.com`
+
+## 19) O erro `Unsupported operation: MultipartFile... dart:io` era backend?
+
+Nao. Era frontend Web usando fluxo de upload para desktop (`fromPath` + `dart:io`).
+
+Correcao aplicada:
+
+- Windows: upload por `path`.
+- Web: upload por `bytes` (`MultipartFile.fromBytes`).
