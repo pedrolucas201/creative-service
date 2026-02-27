@@ -135,7 +135,7 @@ func (h *Handler) GetBMConfig(w http.ResponseWriter, r *http.Request) {
 
 	cfg, err := h.BM.GetBMConfig(r.Context(), bmUUID)
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErrCause(w, 400, "failed_to_get_bm_config", err)
 		return
 	}
 
@@ -203,7 +203,7 @@ func (h *Handler) CreateImageCreative(w http.ResponseWriter, r *http.Request) {
 		ImageBytes:  b,
 	})
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErrCause(w, 400, "failed_to_create_image_creative", err)
 		return
 	}
 	writeJSON(w, 200, out)
@@ -253,7 +253,7 @@ func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 		ThumbBytes:  thumbBytes,
 	})
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErrCause(w, 400, "failed_to_create_video_creative", err)
 		return
 	}
 
@@ -310,7 +310,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		IsAdSetBudgetSharingEnabled: req.IsAdSetBudgetSharingEnabled,
 	})
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErrCause(w, 400, "failed_to_create_campaign", err)
 		return
 	}
 	writeJSON(w, 200, out)
@@ -376,7 +376,7 @@ func (h *Handler) CreateAdSet(w http.ResponseWriter, r *http.Request) {
 		Status:           req.Status,
 	})
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErrCause(w, 400, "failed_to_create_adset", err)
 		return
 	}
 	writeJSON(w, 200, out)
@@ -426,7 +426,7 @@ func (h *Handler) CreateAd(w http.ResponseWriter, r *http.Request) {
 		Status:      req.Status,
 	})
 	if err != nil {
-		writeErr(w, 400, err.Error())
+		writeErrCause(w, 400, "failed_to_create_ad", err)
 		return
 	}
 	writeJSON(w, 200, out)
@@ -524,7 +524,7 @@ func (h *Handler) SoftDeleteCreative(w http.ResponseWriter, r *http.Request) {
 
 	err = h.Store.SoftDeleteCreative(r.Context(), creativeID)
 	if err != nil {
-		writeErr(w, 404, err.Error())
+		writeErrCause(w, 404, "failed_to_delete_creative", err)
 		return
 	}
 
@@ -548,7 +548,7 @@ func (h *Handler) ListCampaigns(w http.ResponseWriter, r *http.Request) {
 		AdAccountID: adAccountID,
 	})
 	if err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_list_campaigns", err)
 		return
 	}
 
@@ -569,7 +569,7 @@ func (h *Handler) ListAdSets(w http.ResponseWriter, r *http.Request) {
 		AdAccountID: adAccountID,
 	})
 	if err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_list_adsets", err)
 		return
 	}
 
@@ -590,7 +590,7 @@ func (h *Handler) ListAds(w http.ResponseWriter, r *http.Request) {
 		AdAccountID: adAccountID,
 	})
 	if err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_list_ads", err)
 		return
 	}
 
@@ -636,7 +636,7 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Status:      req.Status,
 	}); err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_update_campaign", err)
 		return
 	}
 
@@ -665,7 +665,7 @@ func (h *Handler) DeleteCampaign(w http.ResponseWriter, r *http.Request) {
 		AdAccountID: adAccountID,
 		CampaignID:  campaignID,
 	}); err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_delete_campaign", err)
 		return
 	}
 
@@ -713,7 +713,7 @@ func (h *Handler) UpdateAdSet(w http.ResponseWriter, r *http.Request) {
 		Status:      req.Status,
 		DailyBudget: req.DailyBudget,
 	}); err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_update_adset", err)
 		return
 	}
 
@@ -742,7 +742,7 @@ func (h *Handler) DeleteAdSet(w http.ResponseWriter, r *http.Request) {
 		AdAccountID: adAccountID,
 		AdSetID:     adsetID,
 	}); err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_delete_adset", err)
 		return
 	}
 
@@ -788,7 +788,7 @@ func (h *Handler) UpdateAd(w http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Status:      req.Status,
 	}); err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_update_ad", err)
 		return
 	}
 
@@ -817,7 +817,7 @@ func (h *Handler) DeleteAd(w http.ResponseWriter, r *http.Request) {
 		AdAccountID: adAccountID,
 		AdID:        adID,
 	}); err != nil {
-		writeErr(w, 500, err.Error())
+		writeErrCause(w, 500, "failed_to_delete_ad", err)
 		return
 	}
 
