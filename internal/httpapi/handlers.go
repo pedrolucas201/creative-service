@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"creative-service/internal/auth"
 	"creative-service/internal/bm"
@@ -22,7 +23,37 @@ type Handler struct {
 	BM           *bm.Service
 }
 
+var (
+	adAccountWriteRoles = map[string]struct{}{
+		"owner":    {},
+		"admin":    {},
+		"operator": {},
+	}
+	bmConfigReadRoles = map[string]struct{}{
+		"owner": {},
+		"admin": {},
+	}
+)
+
+func roleAllowed(role string, allowed map[string]struct{}) bool {
+	_, ok := allowed[strings.ToLower(strings.TrimSpace(role))]
+	return ok
+}
+
 func (h *Handler) requireAdAccountAccess(w http.ResponseWriter, r *http.Request, adAccountID string) bool {
+	return h.requireAdAccountAccessWithRoles(w, r, adAccountID, nil)
+}
+
+func (h *Handler) requireAdAccountWriteAccess(w http.ResponseWriter, r *http.Request, adAccountID string) bool {
+	return h.requireAdAccountAccessWithRoles(w, r, adAccountID, adAccountWriteRoles)
+}
+
+func (h *Handler) requireAdAccountAccessWithRoles(
+	w http.ResponseWriter,
+	r *http.Request,
+	adAccountID string,
+	requiredRoles map[string]struct{},
+) bool {
 	if adAccountID == "" {
 		writeErr(w, http.StatusBadRequest, "missing_ad_account_id")
 		return false
@@ -39,13 +70,17 @@ func (h *Handler) requireAdAccountAccess(w http.ResponseWriter, r *http.Request,
 		return false
 	}
 
-	allowed, err := h.Store.UserCanAccessAdAccount(r.Context(), identity.UID, adAccountID)
+	role, allowed, err := h.Store.UserRoleForAdAccount(r.Context(), identity.UID, adAccountID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed_to_check_access")
 		return false
 	}
 	if !allowed {
 		writeErr(w, http.StatusForbidden, "forbidden_for_ad_account")
+		return false
+	}
+	if requiredRoles != nil && !roleAllowed(role, requiredRoles) {
+		writeErr(w, http.StatusForbidden, "insufficient_role_for_ad_account")
 		return false
 	}
 
@@ -73,6 +108,30 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 // GetBMConfig implements [Handlers].
 func (h *Handler) GetBMConfig(w http.ResponseWriter, r *http.Request) {
 	bmUUID := chi.URLParam(r, "bm_uuid")
+	if bmUUID == "" {
+		writeErr(w, http.StatusBadRequest, "missing_bm_uuid")
+		return
+	}
+
+	identity, ok := auth.IdentityFromContext(r.Context())
+	if !ok || identity == nil || identity.UID == "" {
+		writeErr(w, http.StatusUnauthorized, "missing_identity")
+		return
+	}
+
+	role, allowed, err := h.Store.UserRoleForBM(r.Context(), identity.UID, bmUUID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed_to_check_bm_access")
+		return
+	}
+	if !allowed {
+		writeErr(w, http.StatusForbidden, "forbidden_for_bm")
+		return
+	}
+	if !roleAllowed(role, bmConfigReadRoles) {
+		writeErr(w, http.StatusForbidden, "insufficient_role_for_bm_config")
+		return
+	}
 
 	cfg, err := h.BM.GetBMConfig(r.Context(), bmUUID)
 	if err != nil {
@@ -121,7 +180,7 @@ func (h *Handler) CreateImageCreative(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, adAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, adAccountID) {
 		return
 	}
 
@@ -161,7 +220,7 @@ func (h *Handler) CreateVideoCreative(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, adAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, adAccountID) {
 		return
 	}
 
@@ -220,7 +279,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, req.AdAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, req.AdAccountID) {
 		return
 	}
 	if req.Name == "" {
@@ -278,7 +337,7 @@ func (h *Handler) CreateAdSet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, req.AdAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, req.AdAccountID) {
 		return
 	}
 	if req.CampaignID == "" {
@@ -340,7 +399,7 @@ func (h *Handler) CreateAd(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, req.AdAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, req.AdAccountID) {
 		return
 	}
 	if req.AdSetID == "" {
@@ -459,7 +518,7 @@ func (h *Handler) SoftDeleteCreative(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "creative_not_found")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, creative.AdAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, creative.AdAccountID) {
 		return
 	}
 
@@ -567,7 +626,7 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, req.AdAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, req.AdAccountID) {
 		return
 	}
 
@@ -598,7 +657,7 @@ func (h *Handler) DeleteCampaign(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, adAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, adAccountID) {
 		return
 	}
 
@@ -643,7 +702,7 @@ func (h *Handler) UpdateAdSet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, req.AdAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, req.AdAccountID) {
 		return
 	}
 
@@ -675,7 +734,7 @@ func (h *Handler) DeleteAdSet(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
-	if !h.requireAdAccountAccess(w, r, adAccountID) {
+	if !h.requireAdAccountWriteAccess(w, r, adAccountID) {
 		return
 	}
 
@@ -719,6 +778,9 @@ func (h *Handler) UpdateAd(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "missing_ad_account_id")
 		return
 	}
+	if !h.requireAdAccountWriteAccess(w, r, req.AdAccountID) {
+		return
+	}
 
 	if err := h.Ads.UpdateAd(r.Context(), service.UpdateAdInput{
 		AdAccountID: req.AdAccountID,
@@ -745,6 +807,9 @@ func (h *Handler) DeleteAd(w http.ResponseWriter, r *http.Request) {
 	adAccountID := r.URL.Query().Get("ad_account_id")
 	if adAccountID == "" {
 		writeErr(w, 400, "missing_ad_account_id")
+		return
+	}
+	if !h.requireAdAccountWriteAccess(w, r, adAccountID) {
 		return
 	}
 

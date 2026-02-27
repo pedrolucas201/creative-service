@@ -3,9 +3,11 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -14,13 +16,13 @@ type Store struct{ DB *pgxpool.Pool }
 func New(db *pgxpool.Pool) *Store { return &Store{DB: db} }
 
 type Client struct {
-	ClientUUID  string     `json:"client_uuid"`
-	ClientID    string     `json:"client_id"`
-	Name        string     `json:"name"`
-	Email       *string    `json:"email,omitempty"`
-	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ClientUUID string     `json:"client_uuid"`
+	ClientID   string     `json:"client_id"`
+	Name       string     `json:"name"`
+	Email      *string    `json:"email,omitempty"`
+	DeletedAt  *time.Time `json:"deleted_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 type AdAccount struct {
@@ -118,19 +120,19 @@ func (s *Store) ListClientsByUID(ctx context.Context, uid string) ([]Client, err
 }
 
 type Creative struct {
-	CreativeID      string          `json:"creative_id"`
-	ClientUUID      string          `json:"client_uuid"`
-	AdAccountID     string          `json:"ad_account_id"` // FK: act_123456789
-	Name            string          `json:"name"`
-	Type            string          `json:"type"` // image ou video
-	URL             string          `json:"url"`
-	ThumbURL        *string         `json:"thumb_url,omitempty"`
-	Link            *string         `json:"link,omitempty"`
-	Message         *string         `json:"message,omitempty"`
-	MetaData        json.RawMessage `json:"meta_data,omitempty"`
-	DeletedAt       *time.Time      `json:"deleted_at,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	CreativeID  string          `json:"creative_id"`
+	ClientUUID  string          `json:"client_uuid"`
+	AdAccountID string          `json:"ad_account_id"` // FK: act_123456789
+	Name        string          `json:"name"`
+	Type        string          `json:"type"` // image ou video
+	URL         string          `json:"url"`
+	ThumbURL    *string         `json:"thumb_url,omitempty"`
+	Link        *string         `json:"link,omitempty"`
+	Message     *string         `json:"message,omitempty"`
+	MetaData    json.RawMessage `json:"meta_data,omitempty"`
+	DeletedAt   *time.Time      `json:"deleted_at,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 func (s *Store) CreateCreative(ctx context.Context, c Creative) error {
@@ -247,7 +249,7 @@ func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount
 		FROM ad_accounts 
 		WHERE ad_account_id = $1 AND deleted_at IS NULL
 	`, adAccountID).Scan(
-		&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID, 
+		&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID,
 		&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 	)
 	return aa, err
@@ -271,7 +273,7 @@ func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) (
 	for rows.Next() {
 		var aa AdAccount
 		err := rows.Scan(
-			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID, 
+			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID,
 			&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 		)
 		if err != nil {
@@ -373,4 +375,44 @@ func (s *Store) UserCanAccessAdAccount(ctx context.Context, uid, adAccountID str
 		)
 	`, uid, adAccountID).Scan(&ok)
 	return ok, err
+}
+
+func (s *Store) UserRoleForAdAccount(ctx context.Context, uid, adAccountID string) (string, bool, error) {
+	var role string
+	err := s.DB.QueryRow(ctx, `
+		SELECT uba.role
+		FROM user_bm_access uba
+		JOIN ad_accounts aa ON aa.bm_uuid = uba.bm_uuid
+		WHERE uba.uid = $1
+		  AND uba.is_active = TRUE
+		  AND aa.ad_account_id = $2
+		  AND aa.deleted_at IS NULL
+		LIMIT 1
+	`, uid, adAccountID).Scan(&role)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return role, true, nil
+}
+
+func (s *Store) UserRoleForBM(ctx context.Context, uid, bmUUID string) (string, bool, error) {
+	var role string
+	err := s.DB.QueryRow(ctx, `
+		SELECT role
+		FROM user_bm_access
+		WHERE uid = $1
+		  AND bm_uuid = $2
+		  AND is_active = TRUE
+		LIMIT 1
+	`, uid, bmUUID).Scan(&role)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return role, true, nil
 }
