@@ -231,6 +231,8 @@ Este documento descreve o fluxo real do backend atual: rota HTTP -> handler -> s
 ## 6. Pontos de atenção atuais
 
 - CORS web está ativo e validado em produção (`OPTIONS /v1/clients` retornando `204` com `Access-Control-Allow-*`).
+- Contrato de erro padronizado ativo na API: `error`, `error_code`, `user_message`.
+- Frontend deve priorizar `error_code` para regra e `user_message` para UX.
 - Há documentação antiga no repositório citando `worker`, `redis`, `jobs` e `cmd/worker`, mas esse runtime não existe no código atual.
-- `UpdateAd` e `DeleteAd` em `internal/httpapi/handlers.go` não chamam `requireAdAccountAccess`, diferente dos demais endpoints protegidos por ad account.
+- RBAC por role já existe (`owner`, `admin`, `operator`, `viewer`), mas enforcement fino por operação ainda pode evoluir.
 - `AccessLog` não registra request/response hoje (middleware vazio).

@@ -214,7 +214,29 @@ Arquivos principais:
 
 ---
 
-## 8. Estado operacional atual
+## 8. Contrato padrao de erros da API (27/02/2026)
+
+O backend passou a responder erros em formato padronizado:
+
+- `error` (compatibilidade com clientes legados)
+- `error_code` (codigo estavel para tratamento no frontend)
+- `user_message` (mensagem amigavel para usuario final)
+
+Exemplo:
+
+```json
+{
+  "error": "missing_authorization_header",
+  "error_code": "missing_authorization_header",
+  "user_message": "Sessao nao encontrada. Faca login para continuar."
+}
+```
+
+Detalhes tecnicos (causa original) ficam apenas em log no backend.
+
+---
+
+## 9. Estado operacional atual
 
 Pronto:
 
@@ -224,6 +246,7 @@ Pronto:
 - Front consumindo API com token.
 - Cadastro de usuário no frontend.
 - CORS web (preflight `OPTIONS`) corrigido e validado em produção.
+- Contrato de erro padronizado (`error`, `error_code`, `user_message`) em producao.
 - Listagens por escopo de usuário:
   - `GET /v1/clients` usa `uid` autenticado.
   - `GET /v1/clients/{client_uuid}/ad-accounts` usa `uid` autenticado.
@@ -236,13 +259,17 @@ Pendente recomendado:
 
 ---
 
-## 9. Documentos relacionados
+## 10. Documentos relacionados
 
 - Mapa técnico de endpoints:
   - `MAPEAMENTO_TECNICO_END_TO_END.md`
+- Contrato de erro da API:
+  - `CONTRATO_ERROS_API.md`
 - Runbook de provisionamento BM + authz:
   - `RUNBOOK_FINAL_BM_PROVISIONING.md`
 - Relatório consolidado de avanço:
   - `RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md`
+- Relatório consolidado atualizado:
+  - `RELATORIO_AVANCOS_SM_FIREBASE_2026-02-27.md`
 - Arquitetura legada/histórica:
   - `explicacao_arquitetura.md` (contém partes antigas, não 100% alinhadas ao runtime atual)

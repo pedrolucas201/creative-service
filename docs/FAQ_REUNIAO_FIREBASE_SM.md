@@ -107,3 +107,41 @@ Correcao aplicada:
 
 - Windows: upload por `path`.
 - Web: upload por `bytes` (`MultipartFile.fromBytes`).
+
+## 20) Qual e o contrato de erro oficial da API hoje?
+
+A resposta de erro e:
+
+- `error` (compatibilidade)
+- `error_code` (codigo estavel)
+- `user_message` (mensagem para usuario final)
+
+Exemplo:
+
+```json
+{
+  "error": "forbidden_for_ad_account",
+  "error_code": "forbidden_for_ad_account",
+  "user_message": "Voce nao tem acesso a esta conta de anuncios."
+}
+```
+
+## 21) Isso quebra clientes antigos?
+
+Nao. O campo antigo `error` foi mantido.
+
+## 22) Onde fica o erro tecnico real?
+
+Nao vai para o payload do cliente.
+
+Fica no log do backend com:
+
+- status;
+- `error_code`;
+- causa tecnica (`cause`) quando houver.
+
+## 23) O frontend usa qual campo para mostrar erro?
+
+- UI: `user_message`
+- Regras no app: `error_code`
+- Fallback legado: `error`

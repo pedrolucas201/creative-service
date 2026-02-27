@@ -14,8 +14,12 @@ Este diretorio centraliza a documentacao oficial do backend.
   versao executiva para alinhamento com gestao.
 - `RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md`:
   consolidado do que foi entregue e status atual.
+- `RELATORIO_AVANCOS_SM_FIREBASE_2026-02-27.md`:
+  consolidado com contrato de erros da API e publicacoes mais recentes.
 - `FAQ_REUNIAO_FIREBASE_SM.md`:
   respostas prontas para reunioes tecnicas e de negocio.
+- `CONTRATO_ERROS_API.md`:
+  padrao oficial de resposta de erro (`error`, `error_code`, `user_message`).
 
 ## Historico
 

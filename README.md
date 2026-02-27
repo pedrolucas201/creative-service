@@ -50,8 +50,12 @@ GET /v1/health
   - [docs/RESUMO_EXECUTIVO_ARQUITETURA_SM_FIREBASE.md](docs/RESUMO_EXECUTIVO_ARQUITETURA_SM_FIREBASE.md)
 - Relatorio consolidado de avancos:
   - [docs/RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md](docs/RELATORIO_AVANCOS_SM_FIREBASE_2026-02-25.md)
+- Relatorio consolidado atualizado:
+  - [docs/RELATORIO_AVANCOS_SM_FIREBASE_2026-02-27.md](docs/RELATORIO_AVANCOS_SM_FIREBASE_2026-02-27.md)
 - FAQ de reuniao:
   - [docs/FAQ_REUNIAO_FIREBASE_SM.md](docs/FAQ_REUNIAO_FIREBASE_SM.md)
+- Contrato oficial de erros:
+  - [docs/CONTRATO_ERROS_API.md](docs/CONTRATO_ERROS_API.md)
 
 ## Arquivos legados
 
