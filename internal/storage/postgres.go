@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -415,4 +416,187 @@ func (s *Store) UserRoleForBM(ctx context.Context, uid, bmUUID string) (string, 
 		return "", false, err
 	}
 	return role, true, nil
+}
+
+func (s *Store) UpsertUserBMAccess(ctx context.Context, uid, bmUUID, role string, isActive bool) error {
+	_, err := s.DB.Exec(ctx, `
+		INSERT INTO user_bm_access(uid, bm_uuid, role, is_active)
+		VALUES($1, $2, $3, $4)
+		ON CONFLICT (uid, bm_uuid)
+		DO UPDATE SET
+			role = EXCLUDED.role,
+			is_active = EXCLUDED.is_active,
+			updated_at = now()
+	`, uid, bmUUID, role, isActive)
+	return err
+}
+
+var allowedEntityStatusType = map[string]struct{}{
+	"creative": {},
+	"campaign": {},
+	"adset":    {},
+	"ad":       {},
+}
+
+type EntityStatusUpsert struct {
+	EntityType  string
+	EntityID    string
+	AdAccountID string
+	Status      string
+	RawPayload  json.RawMessage
+}
+
+type EntityStatusRecord struct {
+	EntityType  string          `json:"entity_type"`
+	EntityID    string          `json:"entity_id"`
+	AdAccountID string          `json:"ad_account_id"`
+	Status      string          `json:"status"`
+	RawPayload  json.RawMessage `json:"raw_payload"`
+	SyncedAt    time.Time       `json:"synced_at"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+func normalizeEntityStatusType(entityType string) string {
+	return strings.ToLower(strings.TrimSpace(entityType))
+}
+
+func validateEntityStatusType(entityType string) error {
+	entityType = normalizeEntityStatusType(entityType)
+	if _, ok := allowedEntityStatusType[entityType]; !ok {
+		return fmt.Errorf("invalid entity_type: %q", entityType)
+	}
+	return nil
+}
+
+func (s *Store) UpsertEntityStatuses(ctx context.Context, items []EntityStatusUpsert) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	for _, item := range items {
+		item.EntityType = normalizeEntityStatusType(item.EntityType)
+		if err := validateEntityStatusType(item.EntityType); err != nil {
+			return err
+		}
+		if strings.TrimSpace(item.EntityID) == "" {
+			return errors.New("entity_id is required")
+		}
+		if strings.TrimSpace(item.AdAccountID) == "" {
+			return errors.New("ad_account_id is required")
+		}
+
+		raw := item.RawPayload
+		if len(raw) == 0 {
+			raw = json.RawMessage(`{}`)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO entity_status_cache(entity_type, entity_id, ad_account_id, status, raw_payload, synced_at)
+			VALUES($1, $2, $3, $4, $5, now())
+			ON CONFLICT (entity_type, entity_id)
+			DO UPDATE SET
+				ad_account_id = EXCLUDED.ad_account_id,
+				status = EXCLUDED.status,
+				raw_payload = EXCLUDED.raw_payload,
+				synced_at = now(),
+				updated_at = now()
+		`, item.EntityType, item.EntityID, item.AdAccountID, item.Status, raw); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (s *Store) ListEntityStatuses(
+	ctx context.Context,
+	adAccountID string,
+	entityType string,
+) ([]EntityStatusRecord, error) {
+	adAccountID = strings.TrimSpace(adAccountID)
+	if adAccountID == "" {
+		return nil, errors.New("ad_account_id is required")
+	}
+
+	entityType = normalizeEntityStatusType(entityType)
+	if entityType != "" {
+		if err := validateEntityStatusType(entityType); err != nil {
+			return nil, err
+		}
+	}
+
+	query := `
+		SELECT entity_type, entity_id, ad_account_id, COALESCE(status, ''), raw_payload, synced_at, created_at, updated_at
+		FROM entity_status_cache
+		WHERE ad_account_id = $1
+	`
+	args := []any{adAccountID}
+
+	if entityType != "" {
+		query += " AND entity_type = $2"
+		args = append(args, entityType)
+	}
+
+	query += " ORDER BY entity_type, synced_at DESC"
+
+	rows, err := s.DB.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []EntityStatusRecord
+	for rows.Next() {
+		var rec EntityStatusRecord
+		var raw []byte
+
+		if err := rows.Scan(
+			&rec.EntityType,
+			&rec.EntityID,
+			&rec.AdAccountID,
+			&rec.Status,
+			&raw,
+			&rec.SyncedAt,
+			&rec.CreatedAt,
+			&rec.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		rec.RawPayload = append(json.RawMessage(nil), raw...)
+		out = append(out, rec)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (s *Store) ListEntityStatusMap(
+	ctx context.Context,
+	adAccountID string,
+	entityType string,
+) (map[string]EntityStatusRecord, error) {
+	rows, err := s.ListEntityStatuses(ctx, adAccountID, entityType)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]EntityStatusRecord, len(rows))
+	for _, row := range rows {
+		if _, exists := out[row.EntityID]; exists {
+			continue
+		}
+		out[row.EntityID] = row
+	}
+
+	return out, nil
 }

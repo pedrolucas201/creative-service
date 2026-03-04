@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -24,12 +25,12 @@ type CampaignService struct {
 }
 
 type CreateCampaignInput struct {
-	AdAccountID          string 
-	Name                 string
-	Objective            string
-	Status               string
-	SpecialAdCategories  []string
-	BuyingType           string
+	AdAccountID                 string
+	Name                        string
+	Objective                   string
+	Status                      string
+	SpecialAdCategories         []string
+	BuyingType                  string
 	IsAdSetBudgetSharingEnabled bool
 }
 
@@ -62,12 +63,12 @@ func (s *CampaignService) CreateCampaign(ctx context.Context, in CreateCampaignI
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
 
 	payload := map[string]any{
-		"name":                              in.Name,
-		"objective":                         in.Objective,
-		"status":                            in.Status,
-		"special_ad_categories":             in.SpecialAdCategories,
-		"buying_type":                       in.BuyingType,
-		"is_adset_budget_sharing_enabled":   in.IsAdSetBudgetSharingEnabled,
+		"name":                            in.Name,
+		"objective":                       in.Objective,
+		"status":                          in.Status,
+		"special_ad_categories":           in.SpecialAdCategories,
+		"buying_type":                     in.BuyingType,
+		"is_adset_budget_sharing_enabled": in.IsAdSetBudgetSharingEnabled,
 	}
 
 	fmt.Printf("=== PAYLOAD PARA META API ===\n%+v\n", payload)
@@ -85,11 +86,13 @@ type ListCampaignsInput struct {
 }
 
 type CampaignItem struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Objective   string `json:"objective,omitempty"`
-	Status      string `json:"status,omitempty"`
-	CreatedTime string `json:"created_time,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Objective        string `json:"objective,omitempty"`
+	Status           string `json:"status,omitempty"`
+	ConfiguredStatus string `json:"configured_status,omitempty"`
+	EffectiveStatus  string `json:"effective_status,omitempty"`
+	CreatedTime      string `json:"created_time,omitempty"`
 }
 
 type ListCampaignsOutput struct {
@@ -119,13 +122,22 @@ func (s *CampaignService) ListCampaigns(ctx context.Context, in ListCampaignsInp
 
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
 
-	fields := []string{"id", "name", "objective", "status", "created_time"}
+	fields := []string{
+		"id",
+		"name",
+		"objective",
+		"status",
+		"configured_status",
+		"effective_status",
+		"created_time",
+	}
 	data, err := mc.ListCampaigns(ctx, adAccount.AdAccountID, fields)
 	if err != nil {
 		return ListCampaignsOutput{}, err
 	}
 
 	campaigns := make([]CampaignItem, 0, len(data))
+	statusRows := make([]storage.EntityStatusUpsert, 0, len(data))
 	for _, item := range data {
 		c := CampaignItem{}
 		if id, ok := item["id"].(string); ok {
@@ -140,10 +152,36 @@ func (s *CampaignService) ListCampaigns(ctx context.Context, in ListCampaignsInp
 		if status, ok := item["status"].(string); ok {
 			c.Status = status
 		}
+		if configured, ok := item["configured_status"].(string); ok {
+			c.ConfiguredStatus = configured
+		}
+		if effective, ok := item["effective_status"].(string); ok {
+			c.EffectiveStatus = effective
+		}
 		if ct, ok := item["created_time"].(string); ok {
 			c.CreatedTime = ct
 		}
+		c.Status = resolveEntityStatus(c.EffectiveStatus, c.ConfiguredStatus, c.Status)
+
+		if c.ID != "" {
+			raw, err := json.Marshal(item)
+			if err != nil {
+				return ListCampaignsOutput{}, fmt.Errorf("marshal campaign payload: %w", err)
+			}
+			statusRows = append(statusRows, storage.EntityStatusUpsert{
+				EntityType:  "campaign",
+				EntityID:    c.ID,
+				AdAccountID: adAccount.AdAccountID,
+				Status:      c.Status,
+				RawPayload:  raw,
+			})
+		}
+
 		campaigns = append(campaigns, c)
+	}
+
+	if err := s.Store.UpsertEntityStatuses(ctx, statusRows); err != nil {
+		return ListCampaignsOutput{}, fmt.Errorf("sync campaign status cache: %w", err)
 	}
 
 	return ListCampaignsOutput{Campaigns: campaigns}, nil
@@ -152,7 +190,7 @@ func (s *CampaignService) ListCampaigns(ctx context.Context, in ListCampaignsInp
 // ======= UPDATE Campaign =======
 
 type UpdateCampaignInput struct {
-	AdAccountID string  // necessário para resolver token
+	AdAccountID string // necessário para resolver token
 	CampaignID  string
 	Name        *string // opcional
 	Status      *string // opcional (ACTIVE, PAUSED, DELETED)

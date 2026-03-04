@@ -20,6 +20,10 @@ Este diretorio centraliza a documentacao oficial do backend.
   respostas prontas para reunioes tecnicas e de negocio.
 - `CONTRATO_ERROS_API.md`:
   padrao oficial de resposta de erro (`error`, `error_code`, `user_message`).
+- `RUNBOOK_META_WEBHOOK_STATUS.md`:
+  setup operacional do webhook da Meta (callback, verify token, inscricao por ad account e troubleshooting).
+- `RELATORIO_META_WEBHOOK_STATUS_UI_2026-03-04.md`:
+  consolidado da entrega de webhook + cache de status + simplificacao da UI, com pendencia de IAM para criacao de usuario.
 
 ## Historico
 

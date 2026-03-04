@@ -56,6 +56,10 @@ GET /v1/health
   - [docs/FAQ_REUNIAO_FIREBASE_SM.md](docs/FAQ_REUNIAO_FIREBASE_SM.md)
 - Contrato oficial de erros:
   - [docs/CONTRATO_ERROS_API.md](docs/CONTRATO_ERROS_API.md)
+- Runbook de webhook de status da Meta:
+  - [docs/RUNBOOK_META_WEBHOOK_STATUS.md](docs/RUNBOOK_META_WEBHOOK_STATUS.md)
+- Relatorio consolidado da entrega webhook/status/UI (2026-03-04):
+  - [docs/RELATORIO_META_WEBHOOK_STATUS_UI_2026-03-04.md](docs/RELATORIO_META_WEBHOOK_STATUS_UI_2026-03-04.md)
 
 ## Arquivos legados
 

@@ -17,9 +17,9 @@ import (
 	"creative-service/internal/storage"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
@@ -75,7 +75,7 @@ func main() {
 
 	// Criar storage client baseado no provider (S3 ou GCS)
 	var storageClient storage.StorageClient
-	
+
 	if cfg.StorageProvider == "gcs" {
 		log.Println("Initializing GCS client...")
 		gcsClient, err := storage.NewGCSClient(ctx, storage.GCSConfig{
@@ -111,65 +111,70 @@ func main() {
 	}
 
 	creativeSync := &service.CreativeSyncService{
-		Store: st,
-		BM: bmService,
-		Tokens: tokens,
-		Storage: storageClient, // Agora usa interface genérica
-		BaseURL: cfg.BaseURL,
-		APIVersion: cfg.APIVersion,
+		Store:       st,
+		BM:          bmService,
+		Tokens:      tokens,
+		Storage:     storageClient, // Agora usa interface genérica
+		BaseURL:     cfg.BaseURL,
+		APIVersion:  cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,
-		Sem: sem,
+		Sem:         sem,
 	}
 
 	campaigns := &service.CampaignService{
-		Store: st,
-		BM: bmService,
-		Tokens: tokens,
-		BaseURL: cfg.BaseURL,
-		APIVersion: cfg.APIVersion,
+		Store:       st,
+		BM:          bmService,
+		Tokens:      tokens,
+		BaseURL:     cfg.BaseURL,
+		APIVersion:  cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,
-		Sem: sem,
+		Sem:         sem,
 	}
 
 	adsets := &service.AdSetService{
-		Store: st,
-		BM: bmService,
-		Tokens: tokens,
-		BaseURL: cfg.BaseURL,
-		APIVersion: cfg.APIVersion,
+		Store:       st,
+		BM:          bmService,
+		Tokens:      tokens,
+		BaseURL:     cfg.BaseURL,
+		APIVersion:  cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,
-		Sem: sem,
+		Sem:         sem,
 	}
 
 	ads := &service.AdService{
-		Store: st,
-		BM: bmService,
-		Tokens: tokens,
-		BaseURL: cfg.BaseURL,
-		APIVersion: cfg.APIVersion,
+		Store:       st,
+		BM:          bmService,
+		Tokens:      tokens,
+		BaseURL:     cfg.BaseURL,
+		APIVersion:  cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,
-		Sem: sem,
-	}
-
-	h := &httpapi.Handler{
-		CreativeSync: creativeSync,
-		Store: st,
-		Campaigns: campaigns,
-		AdSets: adsets,
-		Ads: ads,
-		BM: bmService,
+		Sem:         sem,
 	}
 
 	var verifier auth.Verifier
+	var userManager auth.UserManager
 	if cfg.RequireAuth {
 		fv, err := auth.NewFirebaseVerifier(ctx, cfg.FirebaseProjectID)
 		if err != nil {
 			log.Fatal("failed to create firebase verifier: ", err)
 		}
 		verifier = fv
+		userManager = fv
 		log.Println("Firebase auth enabled")
 	} else {
 		log.Println("Firebase auth disabled (AUTH_REQUIRED=false)")
+	}
+
+	h := &httpapi.Handler{
+		CreativeSync:           creativeSync,
+		Store:                  st,
+		Campaigns:              campaigns,
+		AdSets:                 adsets,
+		Ads:                    ads,
+		BM:                     bmService,
+		UserManager:            userManager,
+		MetaWebhookVerifyToken: cfg.MetaWebhookVerifyToken,
+		MetaWebhookAppSecret:   cfg.MetaWebhookAppSecret,
 	}
 
 	router := httpapi.NewRouter(h, httpapi.RouterOptions{
@@ -179,8 +184,8 @@ func main() {
 	})
 
 	server := &http.Server{
-		Addr: cfg.Addr,
-		Handler: router,
+		Addr:              cfg.Addr,
+		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

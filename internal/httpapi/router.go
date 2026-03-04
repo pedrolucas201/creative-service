@@ -11,7 +11,10 @@ import (
 
 type Handlers interface {
 	Health(http.ResponseWriter, *http.Request)
+	MetaWebhookVerify(http.ResponseWriter, *http.Request)
+	MetaWebhookAdAccount(http.ResponseWriter, *http.Request)
 	GetMe(http.ResponseWriter, *http.Request)
+	CreateManagedUser(http.ResponseWriter, *http.Request)
 	ListClients(http.ResponseWriter, *http.Request)
 	ListAdAccountsByClient(http.ResponseWriter, *http.Request)
 	CreateImageCreative(http.ResponseWriter, *http.Request)
@@ -31,6 +34,8 @@ type Handlers interface {
 	ListAds(http.ResponseWriter, *http.Request)
 	UpdateAd(http.ResponseWriter, *http.Request)
 	DeleteAd(http.ResponseWriter, *http.Request)
+	SyncStatusCache(http.ResponseWriter, *http.Request)
+	ListStatusCache(http.ResponseWriter, *http.Request)
 	GetBMConfig(http.ResponseWriter, *http.Request)
 }
 
@@ -45,6 +50,8 @@ func NewRouter(h Handlers, opts RouterOptions) http.Handler {
 	r.Use(Recoverer, AccessLog, CORS)
 
 	r.Get("/v1/health", h.Health)
+	r.Get("/v1/meta/webhooks/ad-account", h.MetaWebhookVerify)
+	r.Post("/v1/meta/webhooks/ad-account", h.MetaWebhookAdAccount)
 
 	protected := r.With()
 	if opts.RequireAuth {
@@ -59,6 +66,7 @@ func NewRouter(h Handlers, opts RouterOptions) http.Handler {
 	}
 
 	protected.Get("/v1/me", h.GetMe)
+	protected.Post("/v1/admin/users", h.CreateManagedUser)
 	protected.Get("/v1/clients", h.ListClients)
 	protected.Get("/v1/clients/{client_uuid}/ad-accounts", h.ListAdAccountsByClient)
 
@@ -82,6 +90,8 @@ func NewRouter(h Handlers, opts RouterOptions) http.Handler {
 	protected.Get("/v1/ads", h.ListAds)
 	protected.Patch("/v1/ads/{ad_id}", h.UpdateAd)
 	protected.Delete("/v1/ads/{ad_id}", h.DeleteAd)
+	protected.Post("/v1/status/sync", h.SyncStatusCache)
+	protected.Get("/v1/status", h.ListStatusCache)
 
 	protected.Get("/v1/bms/{bm_uuid}/config", h.GetBMConfig)
 

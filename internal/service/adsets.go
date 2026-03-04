@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -87,13 +88,15 @@ type ListAdSetsInput struct {
 }
 
 type AdSetItem struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	CampaignID      string `json:"campaign_id,omitempty"`
-	Status          string `json:"status,omitempty"`
-	DailyBudget     string `json:"daily_budget,omitempty"`
-	BillingEvent    string `json:"billing_event,omitempty"`
-	CreatedTime     string `json:"created_time,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	CampaignID       string `json:"campaign_id,omitempty"`
+	Status           string `json:"status,omitempty"`
+	ConfiguredStatus string `json:"configured_status,omitempty"`
+	EffectiveStatus  string `json:"effective_status,omitempty"`
+	DailyBudget      string `json:"daily_budget,omitempty"`
+	BillingEvent     string `json:"billing_event,omitempty"`
+	CreatedTime      string `json:"created_time,omitempty"`
 }
 
 type ListAdSetsOutput struct {
@@ -123,13 +126,24 @@ func (s *AdSetService) ListAdSets(ctx context.Context, in ListAdSetsInput) (List
 
 	mc := meta.New(s.BaseURL, s.APIVersion, token, s.HTTPTimeout)
 
-	fields := []string{"id", "name", "campaign_id", "status", "daily_budget", "billing_event", "created_time"}
+	fields := []string{
+		"id",
+		"name",
+		"campaign_id",
+		"status",
+		"configured_status",
+		"effective_status",
+		"daily_budget",
+		"billing_event",
+		"created_time",
+	}
 	data, err := mc.ListAdSets(ctx, adAccount.AdAccountID, fields)
 	if err != nil {
 		return ListAdSetsOutput{}, err
 	}
 
 	adsets := make([]AdSetItem, 0, len(data))
+	statusRows := make([]storage.EntityStatusUpsert, 0, len(data))
 	for _, item := range data {
 		a := AdSetItem{}
 		if id, ok := item["id"].(string); ok {
@@ -144,6 +158,12 @@ func (s *AdSetService) ListAdSets(ctx context.Context, in ListAdSetsInput) (List
 		if status, ok := item["status"].(string); ok {
 			a.Status = status
 		}
+		if configured, ok := item["configured_status"].(string); ok {
+			a.ConfiguredStatus = configured
+		}
+		if effective, ok := item["effective_status"].(string); ok {
+			a.EffectiveStatus = effective
+		}
 		if db, ok := item["daily_budget"].(string); ok {
 			a.DailyBudget = db
 		}
@@ -153,7 +173,27 @@ func (s *AdSetService) ListAdSets(ctx context.Context, in ListAdSetsInput) (List
 		if ct, ok := item["created_time"].(string); ok {
 			a.CreatedTime = ct
 		}
+		a.Status = resolveEntityStatus(a.EffectiveStatus, a.ConfiguredStatus, a.Status)
+
+		if a.ID != "" {
+			raw, err := json.Marshal(item)
+			if err != nil {
+				return ListAdSetsOutput{}, fmt.Errorf("marshal adset payload: %w", err)
+			}
+			statusRows = append(statusRows, storage.EntityStatusUpsert{
+				EntityType:  "adset",
+				EntityID:    a.ID,
+				AdAccountID: adAccount.AdAccountID,
+				Status:      a.Status,
+				RawPayload:  raw,
+			})
+		}
+
 		adsets = append(adsets, a)
+	}
+
+	if err := s.Store.UpsertEntityStatuses(ctx, statusRows); err != nil {
+		return ListAdSetsOutput{}, fmt.Errorf("sync adset status cache: %w", err)
 	}
 
 	return ListAdSetsOutput{AdSets: adsets}, nil
@@ -162,11 +202,11 @@ func (s *AdSetService) ListAdSets(ctx context.Context, in ListAdSetsInput) (List
 // ======= UPDATE AdSet =======
 
 type UpdateAdSetInput struct {
-	AdAccountID  string  // necessário para resolver token
-	AdSetID      string
-	Name         *string // opcional
-	Status       *string // opcional (ACTIVE, PAUSED, DELETED)
-	DailyBudget  *int    // opcional
+	AdAccountID string // necessário para resolver token
+	AdSetID     string
+	Name        *string // opcional
+	Status      *string // opcional (ACTIVE, PAUSED, DELETED)
+	DailyBudget *int    // opcional
 }
 
 func (s *AdSetService) UpdateAdSet(ctx context.Context, in UpdateAdSetInput) error {

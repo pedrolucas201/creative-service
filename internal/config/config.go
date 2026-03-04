@@ -11,7 +11,7 @@ type Config struct {
 	APIVersion  string
 	HTTPTimeout time.Duration
 
-	DatabaseURL string
+	DatabaseURL   string
 	RunMigrations bool
 
 	// AWS S3 (legacy - vai ser removido)
@@ -21,8 +21,8 @@ type Config struct {
 	S3SecretAccessKey string
 
 	// GCP Cloud Storage (novo)
-	GCSBucketName     string
-	GCPProjectID      string
+	GCSBucketName      string
+	GCPProjectID       string
 	GCSCredentialsJSON string
 
 	// Escolher qual usar: "s3" ou "gcs"
@@ -30,8 +30,10 @@ type Config struct {
 
 	MaxConcurrency int
 
-	RequireAuth       bool
-	FirebaseProjectID string
+	RequireAuth            bool
+	FirebaseProjectID      string
+	MetaWebhookVerifyToken string
+	MetaWebhookAppSecret   string
 }
 
 func Load() Config {
@@ -41,7 +43,7 @@ func Load() Config {
 		APIVersion:  getenv("META_API_VERSION", "v24.0"),
 		HTTPTimeout: durationDefault(getenv("HTTP_TIMEOUT", "45s"), 45*time.Second),
 
-		DatabaseURL: os.Getenv("DATABASE_URL"),
+		DatabaseURL:   os.Getenv("DATABASE_URL"),
 		RunMigrations: boolDefault(getenv("RUN_MIGRATIONS", "false"), false),
 
 		// AWS S3 (legacy)
@@ -58,9 +60,11 @@ func Load() Config {
 		// Provider: "s3" ou "gcs" (default: s3 pra backward compatibility)
 		StorageProvider: getenv("STORAGE_PROVIDER", "s3"),
 
-		MaxConcurrency: atoiDefault(getenv("MAX_CONCURRENCY", "3"), 3),
-		RequireAuth:    boolDefault(getenv("AUTH_REQUIRED", "false"), false),
-		FirebaseProjectID: getenv("FIREBASE_PROJECT_ID", getenv("GCP_PROJECT_ID", "")),
+		MaxConcurrency:         atoiDefault(getenv("MAX_CONCURRENCY", "3"), 3),
+		RequireAuth:            boolDefault(getenv("AUTH_REQUIRED", "false"), false),
+		FirebaseProjectID:      getenv("FIREBASE_PROJECT_ID", getenv("GCP_PROJECT_ID", "")),
+		MetaWebhookVerifyToken: os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
+		MetaWebhookAppSecret:   os.Getenv("META_WEBHOOK_APP_SECRET"),
 	}
 }
 
