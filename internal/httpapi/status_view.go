@@ -95,6 +95,16 @@ func extractStatusRawInfo(raw json.RawMessage) statusRawInfo {
 		)
 		info.GraphName = webhookAnyToString(graph["name"])
 	}
+	if info.GraphStatus == "" {
+		info.GraphStatus = firstNonEmptyStatus(
+			webhookAnyToString(payload["effective_status"]),
+			webhookAnyToString(payload["configured_status"]),
+			webhookAnyToString(payload["status"]),
+		)
+	}
+	if info.GraphName == "" {
+		info.GraphName = webhookAnyToString(payload["name"])
+	}
 
 	if webhook, ok := payload["webhook"].(map[string]any); ok {
 		info.WebhookField = webhookAnyToString(webhook["field"])
@@ -105,11 +115,25 @@ func extractStatusRawInfo(raw json.RawMessage) statusRawInfo {
 			info.ErrorMessage = webhookAnyToString(value["error_message"])
 		}
 	}
+	if info.ErrorCode == "" {
+		info.ErrorCode = webhookAnyToString(payload["error_code"])
+	}
+	if info.ErrorSummary == "" {
+		info.ErrorSummary = webhookAnyToString(payload["error_summary"])
+	}
+	if info.ErrorMessage == "" {
+		info.ErrorMessage = webhookAnyToString(payload["error_message"])
+	}
 
 	info.SourceAdID = webhookAnyToString(payload["source_ad_id"])
 	info.SourceAdState = webhookAnyToString(payload["source_ad_status"])
 
-	info.StatusReason = firstNonEmptyStatusReason(info.ErrorMessage, info.ErrorSummary)
+	info.StatusReason = firstNonEmptyStatusReason(
+		webhookAnyToString(payload["status_reason"]),
+		info.ErrorMessage,
+		info.ErrorSummary,
+		extractReasonFromMap(payload),
+	)
 	return info
 }
 
@@ -118,6 +142,58 @@ func firstNonEmptyStatusReason(values ...string) string {
 		v := strings.TrimSpace(value)
 		if v != "" {
 			return v
+		}
+	}
+	return ""
+}
+
+func extractReasonFromMap(payload map[string]any) string {
+	keys := []string{
+		"ad_review_feedback",
+		"issues_info",
+		"review_feedback",
+		"rejection_reasons",
+		"disapproval_reasons",
+		"recommendations",
+		"message",
+		"description",
+	}
+
+	for _, key := range keys {
+		if value, ok := payload[key]; ok {
+			if reason := extractReasonFromAny(value); reason != "" {
+				return reason
+			}
+		}
+	}
+
+	return ""
+}
+
+func extractReasonFromAny(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case map[string]any:
+		// Prioriza chaves mais comuns de motivo.
+		for _, key := range []string{"error_message", "error_summary", "message", "summary", "description", "reason", "global"} {
+			if v, ok := typed[key]; ok {
+				if reason := extractReasonFromAny(v); reason != "" {
+					return reason
+				}
+			}
+		}
+		// Fallback: varre todo o mapa.
+		for _, v := range typed {
+			if reason := extractReasonFromAny(v); reason != "" {
+				return reason
+			}
+		}
+	case []any:
+		for _, v := range typed {
+			if reason := extractReasonFromAny(v); reason != "" {
+				return reason
+			}
 		}
 	}
 	return ""

@@ -306,8 +306,10 @@ func fetchGraphEntityStatus(
 
 func graphFieldsForEntityType(entityType string) []string {
 	switch entityType {
-	case "campaign", "adset", "ad":
+	case "campaign", "adset":
 		return []string{"id", "name", "status", "configured_status", "effective_status"}
+	case "ad":
+		return []string{"id", "name", "campaign_id", "status", "configured_status", "effective_status"}
 	case "creative":
 		return []string{"id", "name", "status"}
 	default:

@@ -34,6 +34,17 @@ type Config struct {
 	FirebaseProjectID      string
 	MetaWebhookVerifyToken string
 	MetaWebhookAppSecret   string
+
+	ContingencyInternalToken        string
+	ContingencyMonitorAdAccounts    []string
+	ContingencyDefaultMaxCandidates int
+	ContingencyDefaultMaxAttempts   int
+	ContingencyDefaultRefreshStatus bool
+	ContingencyDispatchViaTasks     bool
+	ContingencyTasksProjectID       string
+	ContingencyTasksLocation        string
+	ContingencyTasksQueue           string
+	ContingencyTasksExecuteURL      string
 }
 
 func Load() Config {
@@ -65,6 +76,17 @@ func Load() Config {
 		FirebaseProjectID:      getenv("FIREBASE_PROJECT_ID", getenv("GCP_PROJECT_ID", "")),
 		MetaWebhookVerifyToken: os.Getenv("META_WEBHOOK_VERIFY_TOKEN"),
 		MetaWebhookAppSecret:   os.Getenv("META_WEBHOOK_APP_SECRET"),
+
+		ContingencyInternalToken:        os.Getenv("CONTINGENCY_INTERNAL_TOKEN"),
+		ContingencyMonitorAdAccounts:    csvDefault(os.Getenv("CONTINGENCY_MONITOR_AD_ACCOUNTS")),
+		ContingencyDefaultMaxCandidates: atoiDefault(getenv("CONTINGENCY_MAX_CANDIDATES", "50"), 50),
+		ContingencyDefaultMaxAttempts:   atoiDefault(getenv("CONTINGENCY_MAX_ATTEMPTS", "3"), 3),
+		ContingencyDefaultRefreshStatus: boolDefault(getenv("CONTINGENCY_REFRESH_STATUS", "true"), true),
+		ContingencyDispatchViaTasks:     boolDefault(getenv("CONTINGENCY_DISPATCH_VIA_TASKS", "true"), true),
+		ContingencyTasksProjectID:       getenv("CONTINGENCY_TASKS_PROJECT_ID", getenv("GCP_PROJECT_ID", "")),
+		ContingencyTasksLocation:        getenv("CONTINGENCY_TASKS_LOCATION", "us-central1"),
+		ContingencyTasksQueue:           getenv("CONTINGENCY_TASKS_QUEUE", "contingency-executor"),
+		ContingencyTasksExecuteURL:      os.Getenv("CONTINGENCY_TASKS_EXECUTE_URL"),
 	}
 }
 

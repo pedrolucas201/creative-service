@@ -39,16 +39,19 @@ func (c *Client) endpoint(path string) string {
 
 type apiError struct {
 	FBError struct {
-		Message      string `json:"message"`
-		Type         string `json:"type"`
-		Code         int    `json:"code"`
-		ErrorSubcode int    `json:"error_subcode"`
-		FbTraceID    string `json:"fbtrace_id"`
+		Message        string         `json:"message"`
+		Type           string         `json:"type"`
+		Code           int            `json:"code"`
+		ErrorSubcode   int            `json:"error_subcode"`
+		FbTraceID      string         `json:"fbtrace_id"`
+		ErrorUserTitle string         `json:"error_user_title"`
+		ErrorUserMsg   string         `json:"error_user_msg"`
+		ErrorData      map[string]any `json:"error_data"`
 	} `json:"error"`
 }
 
 func (e apiError) Error() string {
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"meta api error: code=%d subcode=%d type=%s msg=%s trace=%s",
 		e.FBError.Code,
 		e.FBError.ErrorSubcode,
@@ -56,6 +59,26 @@ func (e apiError) Error() string {
 		e.FBError.Message,
 		e.FBError.FbTraceID,
 	)
+	if strings.TrimSpace(e.FBError.ErrorUserTitle) != "" {
+		msg += " user_title=" + strings.TrimSpace(e.FBError.ErrorUserTitle)
+	}
+	if strings.TrimSpace(e.FBError.ErrorUserMsg) != "" {
+		msg += " user_msg=" + strings.TrimSpace(e.FBError.ErrorUserMsg)
+	}
+	if len(e.FBError.ErrorData) > 0 {
+		if raw, err := json.Marshal(e.FBError.ErrorData); err == nil {
+			msg += " error_data=" + string(raw)
+		}
+	}
+	return msg
+}
+
+func IsInvalidParameterError(err error) bool {
+	var ae apiError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	return ae.FBError.Code == 100
 }
 
 func Act(id string) string {
@@ -130,6 +153,39 @@ func (c *Client) doForm(ctx context.Context, method, path string, fields map[str
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	respBody, status, err := c.doWithRetry(req)
+	if err != nil {
+		return err
+	}
+	if status >= 400 {
+		var ae apiError
+		_ = json.Unmarshal(respBody, &ae)
+		if ae.FBError.Code != 0 {
+			return ae
+		}
+		return fmt.Errorf("meta http %d: %s", status, string(respBody))
+	}
+	if out != nil {
+		if err := json.Unmarshal(respBody, out); err != nil {
+			return fmt.Errorf("unmarshal: %w body=%s", err, string(respBody))
+		}
+	}
+	return nil
+}
+
+func (c *Client) doURLEncodedForm(ctx context.Context, method, path string, fields map[string]string, out any) error {
+	form := url.Values{}
+	for key, value := range fields {
+		form.Set(key, value)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.endpoint(path), strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	respBody, status, err := c.doWithRetry(req)
 	if err != nil {
@@ -258,9 +314,62 @@ func (c *Client) GetObject(ctx context.Context, objectID string, fields []string
 	return out, nil
 }
 
+func encodeFormFields(payload map[string]any) (map[string]string, error) {
+	fields := make(map[string]string, len(payload))
+	for key, value := range payload {
+		if value == nil {
+			continue
+		}
+		switch typed := value.(type) {
+		case string:
+			fields[key] = typed
+		case []string:
+			if key == "special_ad_categories" {
+				switch len(typed) {
+				case 0:
+					fields[key] = "[]"
+				case 1:
+					fields[key] = typed[0]
+				default:
+					raw, err := json.Marshal(typed)
+					if err != nil {
+						return nil, fmt.Errorf("encode field %s: %w", key, err)
+					}
+					fields[key] = string(raw)
+				}
+				continue
+			}
+			raw, err := json.Marshal(typed)
+			if err != nil {
+				return nil, fmt.Errorf("encode field %s: %w", key, err)
+			}
+			fields[key] = string(raw)
+		case bool:
+			if typed {
+				fields[key] = "true"
+			} else {
+				fields[key] = "false"
+			}
+		case int, int8, int16, int32, int64, float32, float64:
+			fields[key] = fmt.Sprint(typed)
+		default:
+			raw, err := json.Marshal(value)
+			if err != nil {
+				return nil, fmt.Errorf("encode field %s: %w", key, err)
+			}
+			fields[key] = string(raw)
+		}
+	}
+	return fields, nil
+}
+
 func (c *Client) CreateCampaign(ctx context.Context, adAccountID string, payload map[string]any) (string, error) {
 	var out CreateIDResponse
-	if err := c.doJSON(ctx, http.MethodPost, fmt.Sprintf("%s/campaigns", Act(adAccountID)), nil, payload, &out); err != nil {
+	fields, err := encodeFormFields(payload)
+	if err != nil {
+		return "", err
+	}
+	if err := c.doURLEncodedForm(ctx, http.MethodPost, fmt.Sprintf("%s/campaigns", Act(adAccountID)), fields, &out); err != nil {
 		return "", err
 	}
 	if out.ID == "" {

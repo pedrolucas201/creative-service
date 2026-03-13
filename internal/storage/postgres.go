@@ -30,6 +30,8 @@ type AdAccount struct {
 	AdAccountID   string     `json:"ad_account_id"` // PK: act_123456789 (Meta ID)
 	ClientUUID    string     `json:"client_uuid"`
 	BMUUID        *string    `json:"bm_uuid,omitempty"`
+	BMID          string     `json:"bm_id,omitempty"`
+	BMIsActive    bool       `json:"bm_is_active"`
 	AdAccountName string     `json:"ad_account_name"`
 	PageID        string     `json:"page_id"`
 	TokenRef      string     `json:"token_ref"`
@@ -245,13 +247,17 @@ func (s *Store) SoftDeleteCreative(ctx context.Context, creativeID string) error
 func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount, error) {
 	var aa AdAccount
 	err := s.DB.QueryRow(ctx, `
-		SELECT ad_account_id, client_uuid, bm_uuid, ad_account_name, page_id, token_ref, 
-			is_active, deleted_at, created_at, updated_at
-		FROM ad_accounts 
-		WHERE ad_account_id = $1 AND deleted_at IS NULL
+		SELECT aa.ad_account_id, aa.client_uuid, aa.bm_uuid,
+			COALESCE(bm.bm_id, '') AS bm_id,
+			COALESCE(bm.is_active, FALSE) AS bm_is_active,
+			aa.ad_account_name, aa.page_id, aa.token_ref,
+			aa.is_active, aa.deleted_at, aa.created_at, aa.updated_at
+		FROM ad_accounts aa
+		LEFT JOIN business_managers bm ON bm.bm_uuid = aa.bm_uuid
+		WHERE aa.ad_account_id = $1 AND aa.deleted_at IS NULL
 	`, adAccountID).Scan(
-		&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID,
-		&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
+		&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.BMID, &aa.BMIsActive,
+		&aa.AdAccountName, &aa.PageID, &aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 	)
 	return aa, err
 }
@@ -259,11 +265,15 @@ func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount
 // ListAdAccountsByClient lista todas as ad accounts de um cliente
 func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) ([]AdAccount, error) {
 	rows, err := s.DB.Query(ctx, `
-		SELECT ad_account_id, client_uuid, bm_uuid, ad_account_name, page_id, token_ref, 
-			is_active, deleted_at, created_at, updated_at
-		FROM ad_accounts 
-		WHERE client_uuid = $1 AND deleted_at IS NULL
-		ORDER BY ad_account_name
+		SELECT aa.ad_account_id, aa.client_uuid, aa.bm_uuid,
+			COALESCE(bm.bm_id, '') AS bm_id,
+			COALESCE(bm.is_active, FALSE) AS bm_is_active,
+			aa.ad_account_name, aa.page_id, aa.token_ref,
+			aa.is_active, aa.deleted_at, aa.created_at, aa.updated_at
+		FROM ad_accounts aa
+		LEFT JOIN business_managers bm ON bm.bm_uuid = aa.bm_uuid
+		WHERE aa.client_uuid = $1 AND aa.deleted_at IS NULL
+		ORDER BY aa.ad_account_name
 	`, clientUUID)
 	if err != nil {
 		return nil, err
@@ -274,8 +284,8 @@ func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) (
 	for rows.Next() {
 		var aa AdAccount
 		err := rows.Scan(
-			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID,
-			&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
+			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.BMID, &aa.BMIsActive,
+			&aa.AdAccountName, &aa.PageID, &aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -291,10 +301,14 @@ func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) (
 
 func (s *Store) ListAdAccountsByClientForUID(ctx context.Context, clientUUID, uid string) ([]AdAccount, error) {
 	rows, err := s.DB.Query(ctx, `
-		SELECT aa.ad_account_id, aa.client_uuid, aa.bm_uuid, aa.ad_account_name, aa.page_id, aa.token_ref,
+		SELECT aa.ad_account_id, aa.client_uuid, aa.bm_uuid,
+			COALESCE(bm.bm_id, '') AS bm_id,
+			COALESCE(bm.is_active, FALSE) AS bm_is_active,
+			aa.ad_account_name, aa.page_id, aa.token_ref,
 			aa.is_active, aa.deleted_at, aa.created_at, aa.updated_at
 		FROM ad_accounts aa
 		JOIN user_bm_access uba ON uba.bm_uuid = aa.bm_uuid
+		LEFT JOIN business_managers bm ON bm.bm_uuid = aa.bm_uuid
 		WHERE aa.client_uuid = $1
 		  AND aa.deleted_at IS NULL
 		  AND uba.uid = $2
@@ -310,8 +324,8 @@ func (s *Store) ListAdAccountsByClientForUID(ctx context.Context, clientUUID, ui
 	for rows.Next() {
 		var aa AdAccount
 		err := rows.Scan(
-			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.AdAccountName, &aa.PageID,
-			&aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
+			&aa.AdAccountID, &aa.ClientUUID, &aa.BMUUID, &aa.BMID, &aa.BMIsActive,
+			&aa.AdAccountName, &aa.PageID, &aa.TokenRef, &aa.IsActive, &aa.DeletedAt, &aa.CreatedAt, &aa.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

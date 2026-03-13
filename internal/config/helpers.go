@@ -1,8 +1,8 @@
 package config
 
 import (
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,4 +31,27 @@ func boolDefault(s string, def bool) bool {
 	default:
 		return def
 	}
+}
+
+func csvDefault(s string) []string {
+	raw := strings.TrimSpace(s)
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }

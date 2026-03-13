@@ -19,15 +19,26 @@ import (
 )
 
 type Handler struct {
-	CreativeSync           *service.CreativeSyncService
-	Store                  *storage.Store
-	Campaigns              *service.CampaignService
-	AdSets                 *service.AdSetService
-	Ads                    *service.AdService
-	BM                     *bm.Service
-	UserManager            auth.UserManager
-	MetaWebhookVerifyToken string
-	MetaWebhookAppSecret   string
+	CreativeSync                    *service.CreativeSyncService
+	Store                           *storage.Store
+	Campaigns                       *service.CampaignService
+	AdSets                          *service.AdSetService
+	Ads                             *service.AdService
+	BM                              *bm.Service
+	UserManager                     auth.UserManager
+	MetaWebhookVerifyToken          string
+	MetaWebhookAppSecret            string
+	ContingencyTasks                ContingencyTaskDispatcher
+	ContingencyInternalToken        string
+	ContingencyMonitorAdAccounts    []string
+	ContingencyDefaultMaxCandidates int
+	ContingencyDefaultMaxAttempts   int
+	ContingencyDefaultRefreshStatus bool
+	ContingencyDispatchViaTasks     bool
+}
+
+type ContingencyTaskDispatcher interface {
+	EnqueueContingencyExecution(ctx context.Context, incidentUUID string, maxAttempts int) (string, error)
 }
 
 var (
@@ -35,6 +46,10 @@ var (
 		"owner":    {},
 		"admin":    {},
 		"operator": {},
+	}
+	contingencyManualRoles = map[string]struct{}{
+		"owner": {},
+		"admin": {},
 	}
 	bmConfigReadRoles = map[string]struct{}{
 		"owner": {},

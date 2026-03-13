@@ -83,6 +83,7 @@ type ListAdsInput struct {
 type AdItem struct {
 	ID               string         `json:"id"`
 	Name             string         `json:"name"`
+	CampaignID       string         `json:"campaign_id,omitempty"`
 	AdSetID          string         `json:"adset_id,omitempty"`
 	Status           string         `json:"status,omitempty"`
 	ConfiguredStatus string         `json:"configured_status,omitempty"`
@@ -153,6 +154,7 @@ func (s *AdService) ListAds(ctx context.Context, in ListAdsInput) (ListAdsOutput
 	fields := []string{
 		"id",
 		"name",
+		"campaign_id",
 		"adset_id",
 		"status",
 		"configured_status",
@@ -177,6 +179,9 @@ func (s *AdService) ListAds(ctx context.Context, in ListAdsInput) (ListAdsOutput
 		}
 		if name, ok := item["name"].(string); ok {
 			a.Name = name
+		}
+		if campaignID, ok := item["campaign_id"].(string); ok {
+			a.CampaignID = campaignID
 		}
 		if asid, ok := item["adset_id"].(string); ok {
 			a.AdSetID = asid

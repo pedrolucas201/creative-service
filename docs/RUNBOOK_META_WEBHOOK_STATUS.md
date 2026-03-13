@@ -1,57 +1,133 @@
-# Runbook Meta Webhook Status (Ad Account)
+# Runbook Meta Webhook + Status no App
 
 ## Objetivo
 
-Documentar o fluxo de webhook da Meta para status de objetos de Ads (ad, adset, campaign, creative), desde a configuracao do app ate a confirmacao do update no banco (`entity_status_cache`).
+Documentar o estado final da implementacao de status da Meta no projeto:
 
-## Escopo Implementado no Backend
+- webhook de Ad Account
+- sincronizacao de status em `entity_status_cache`
+- consulta sob demanda de status da conta na Meta
+- como isso aparece na UI
+- troubleshooting real dos erros que aconteceram
 
-- Endpoint de verificacao:
+## Escopo implementado
+
+### 1) Webhook Meta (Ad Account)
+
+- Verificacao:
   - `GET /v1/meta/webhooks/ad-account`
-- Endpoint de recebimento:
+- Recebimento:
   - `POST /v1/meta/webhooks/ad-account`
 - Validacoes:
-  - `hub.verify_token` (GET)
-  - `X-Hub-Signature-256` com HMAC SHA-256 (POST)
+  - `hub.verify_token`
+  - `X-Hub-Signature-256` (HMAC SHA-256)
 - Processamento:
-  - interpreta payload de `ad_account`
-  - resolve `entity_type/entity_id`
-  - consulta status atual no Graph API
-  - faz upsert em `entity_status_cache`
+  - interpreta mudancas de `ad_account`
+  - resolve `entity_type`/`entity_id`
+  - consulta status atual no Graph
+  - upsert em `entity_status_cache`
 
-## Pre-requisitos
+### 2) Snapshot de status para UI
 
-1. Meta App criado e com acesso a Ads.
-2. Permissao no token da Meta:
-   - `ads_management`
-   - `business_management` (recomendado)
-3. Backend publicado com rota de webhook.
-4. Variaveis de ambiente no Cloud Run:
-   - `META_WEBHOOK_VERIFY_TOKEN`
-   - `META_WEBHOOK_APP_SECRET`
+- Endpoints:
+  - `GET /v1/status`
+  - `POST /v1/status/sync`
+- Retorno enriquecido para UI:
+  - `status`, `status_reason`
+  - `graph_status`, `graph_name`
+  - `error_code`, `error_summary`, `error_message`
+  - `source`, `webhook_field`, `webhook_level`
+  - `source_ad_id`, `source_ad_status` (quando aplicavel)
 
-## Configurar Verify Token (PowerShell 5.1+)
+### 3) Consulta de status da conta na Meta (novo)
 
-```powershell
-$bytes = New-Object 'System.Byte[]' 32
-$rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::Create()
-$rng.GetBytes($bytes)
-$VERIFY = -join ($bytes | ForEach-Object { $_.ToString('x2') })
-$rng.Dispose()
-$VERIFY
-```
+- Endpoint:
+  - `GET /v1/ad-accounts/{ad_account_id}/meta-status`
+- Protegido por auth + autorizacao por ad account (`requireAdAccountAccess`).
+- Retorna 2 blocos:
+  - `system`: estado interno no banco
+  - `meta`: estado consultado no Graph API
 
-## Atualizar Env no Cloud Run
+Arquivos principais no backend:
 
-```powershell
-$APP_SECRET = "SUA_APP_SECRET"
-gcloud run services update creative-backend `
-  --region us-central1 `
-  --project rogakronos `
-  --update-env-vars "META_WEBHOOK_VERIFY_TOKEN=$VERIFY,META_WEBHOOK_APP_SECRET=$APP_SECRET"
-```
+- `internal/httpapi/handlers_meta_webhook.go`
+- `internal/httpapi/handlers_meta_status.go`
+- `internal/httpapi/status_view.go`
+- `internal/httpapi/router.go`
+- `internal/httpapi/responses.go`
 
-## Smoke Test da Verificacao
+## Fluxo end-to-end
+
+1. Usuario abre app e seleciona conta.
+2. Front lista entidades (criativo/campanha/conjunto/anuncio).
+3. Front pode sincronizar snapshot via `/v1/status?refresh=true` (ou endpoint de sync).
+4. Backend consulta Graph, atualiza cache e devolve status consolidado.
+5. UI mostra status em cada card:
+   - Criativo: status do criativo + status no anuncio (quando houver)
+   - Campanha: efetivo + configurado
+   - Conjunto: efetivo + configurado
+   - Anuncio: efetivo + configurado
+6. Barra de contexto da conta mostra:
+   - `Conta`
+   - `Conta no sistema`
+   - `Conta na Meta`
+   - `BM no sistema`
+
+## Decisao de UX aplicada (pedido do produto)
+
+Removido da UI principal:
+
+- `BM na Meta`
+- exibicao de `BM ID`
+
+Motivo:
+
+- evitar informacao tecnica desnecessaria para usuario final
+- reduzir ruido visual
+- manter foco no que realmente muda operacao diaria
+
+Obs.: o backend ainda consegue consultar BM na Meta internamente, mas isso foi ocultado da tela principal por decisao de produto.
+
+## "Nao consultado" / "Indisponivel" - explicacao real
+
+Causa encontrada no caso real:
+
+- Front estava apontando para Cloud Run (`ApiConfig.url` em producao).
+- Endpoint novo ainda nao estava deployado na revisao ativa.
+- Chamada retornava `404`, entao a UI nao recebia payload de Meta.
+
+Correcao aplicada:
+
+1. deploy de nova imagem no Cloud Run com o endpoint:
+   - revisao: `creative-backend-00041-kw8`
+2. ajuste de UX no front:
+   - quando a consulta falha, mostra `Indisponivel` (em vez de texto ambiguo)
+
+## Deploy executado (backend)
+
+Imagem:
+
+- `us-central1-docker.pkg.dev/rogakronos/titan-repo/backend:meta-account-status-20260305-1300`
+
+Servico:
+
+- `creative-backend`
+- URL: `https://creative-backend-663062637696.us-central1.run.app`
+- Revisao ativa: `creative-backend-00041-kw8`
+
+Validacao pos-deploy:
+
+- `GET /v1/ad-accounts/{id}/meta-status` sem token -> `401` (esperado)
+- importante: nao retorna mais `404`
+
+## Configuracao de Webhook (mantida)
+
+Variaveis de ambiente (Cloud Run):
+
+- `META_WEBHOOK_VERIFY_TOKEN`
+- `META_WEBHOOK_APP_SECRET`
+
+Teste de verificacao:
 
 ```powershell
 $BASE = "https://creative-backend-663062637696.us-central1.run.app"
@@ -59,24 +135,13 @@ curl.exe -i "$BASE/v1/meta/webhooks/ad-account?hub.mode=subscribe&hub.verify_tok
 ```
 
 Esperado:
+
 - HTTP `200`
 - body: `12345`
 
-## Configurar no Meta App (UI)
-
-1. Meta Developers -> App -> Webhooks.
-2. Produto/objeto: `Ad Account`.
-3. Callback URL:
-   - `https://creative-backend-663062637696.us-central1.run.app/v1/meta/webhooks/ad-account`
-4. Verify token:
-   - mesmo valor de `META_WEBHOOK_VERIFY_TOKEN`.
-5. Clique `Verificar e salvar`.
-
 ## Inscricao por Ad Account (obrigatorio por conta)
 
-Observacao: validar webhook no app nao inscreve automaticamente todas as ad accounts.
-
-Para cada ad account que deve enviar eventos:
+Cada ad account precisa ser inscrita no webhook:
 
 ```powershell
 $TOKEN = "TOKEN_META_COM_ads_management"
@@ -86,133 +151,36 @@ $body = @{
   access_token      = $TOKEN
 }
 Invoke-RestMethod -Method Post -Uri "https://graph.facebook.com/v24.0/$AD/subscribed_apps" -Body $body
-```
-
-Confirmar inscricao:
-
-```powershell
 Invoke-RestMethod -Method Get -Uri "https://graph.facebook.com/v24.0/$AD/subscribed_apps?access_token=$TOKEN"
 ```
 
-Esperado:
-- retorno com `app_id` do app cadastrado.
+## Troubleshooting rapido
 
-## Validacao no Banco
+### 1) `404` no endpoint novo
 
-```sql
-SELECT entity_type, entity_id, ad_account_id, status, synced_at
-FROM entity_status_cache
-WHERE ad_account_id = 'act_1427227328791737'
-ORDER BY synced_at DESC
-LIMIT 20;
-```
-
-## Resultado de Negocio Esperado
-
-1. Operacao de ads gera mudanca de status na Meta.
-2. Meta envia evento para webhook.
-3. Backend atualiza `entity_status_cache`.
-4. App consulta status e exibe para usuario.
-
-## Campos enriquecidos no retorno de status
-
-Nos endpoints:
-
-- `GET /v1/status`
-- `POST /v1/status/sync`
-
-os itens de `statuses` agora incluem (alem dos campos originais) informacoes prontas para UI:
-
-- `source`: origem do payload (ex.: `meta_webhook`)
-- `webhook_field`: campo do webhook que disparou (ex.: `with_issues_ad_objects`)
-- `webhook_level`: nivel do objeto (ex.: `AD`, `ADSET`, `CAMPAIGN`)
-- `error_code`
-- `error_summary`
-- `error_message`
-- `status_reason`: mensagem amigavel principal para exibicao
-- `graph_status`: status resolvido vindo do Graph
-- `graph_name`: nome do objeto no Graph
-- `source_ad_id` / `source_ad_status` (quando aplicavel)
-
-Exemplo simplificado:
-
-```json
-{
-  "entity_type": "ad",
-  "entity_id": "120236220628090377",
-  "status": "WITH_ISSUES",
-  "source": "meta_webhook",
-  "webhook_field": "with_issues_ad_objects",
-  "error_code": "567",
-  "error_summary": "Problema de politica",
-  "error_message": "Anuncio reprovado por politica X",
-  "status_reason": "Anuncio reprovado por politica X"
-}
-```
-
-## Limitacao Atual (importante)
-
-Com os campos inscritos hoje:
-- `with_issues_ad_objects`
-- `in_process_ad_objects`
-
-Voce recebe principalmente eventos de transicao para `WITH_ISSUES` e `IN_PROCESS`.
-Para cobertura mais ampla de estados finais, manter fallback de consulta (`/v1/status?refresh=true`) e/ou ampliar estrategia de polling sob demanda.
-
-## Como interpretar os 3 status (sem confusao)
-
-No backend e na API existem tres visoes de status para a mesma entidade:
-
-1. `configured_status`:
-   - o que foi solicitado/configurado (ex.: ACTIVE, PAUSED).
-2. `effective_status`:
-   - o estado real que a Meta esta aplicando agora.
-3. `status` (final):
-   - status consolidado usado pela UI como status principal.
-
-Regra pratica para produto:
-- UI mostra `status` como principal.
-- UI mostra `Motivo do status` quando houver (`status_reason`/erros da Meta).
-- UI mostra detalhes tecnicos apenas quando `configured_status` e `effective_status` divergem.
-
-## Troubleshooting Real (casos enfrentados)
-
-### 1) `404 Not Found` no callback
-
-Causa:
-- imagem antiga em producao, sem rota de webhook.
-
-Correcao:
-- build/push/deploy de nova imagem do backend.
+- backend sem deploy da revisao com rota nova.
 
 ### 2) `invalid_webhook_verify_token` (403)
 
-Causa:
-- token enviado no teste diferente do token salvo na env do Cloud Run.
+- token usado no teste diferente do token salvo em env.
 
-Correcao:
-- atualizar `META_WEBHOOK_VERIFY_TOKEN` e testar com o mesmo valor literal.
+### 3) PowerShell quebrando `curl -X/-d`
 
-### 3) PowerShell: `curl -X` com erro (`-X` / `-d` nao reconhecido)
-
-Causa:
-- alias `curl` do PowerShell chama `Invoke-WebRequest`.
-
-Correcao:
 - usar `curl.exe` ou `Invoke-RestMethod`.
 
-### 4) Graph API erro `code 100 / subcode 33`
+### 4) `Invalid OAuth access token - Cannot parse`
 
-Causa:
-- token sem acesso/permissao na ad account, ou id incorreto para aquele token.
+- token com BOM/caractere invisivel; aplicar trim/sanitize.
 
-Correcao:
-- listar `me/adaccounts` com o mesmo token e usar um `act_<id>` realmente acessivel.
+### 5) Conta sem status util na UI
 
-## Seguranca Operacional
+- confirmar:
+  - endpoint `/v1/status` funcionando
+  - webhook inscrito para a ad account correta
+  - token com permissao na conta
 
-1. Nunca versionar `APP_SECRET` e access tokens.
-2. Se houve exposicao, rotacionar imediatamente:
-   - App Secret (Meta)
-   - Access Token
-3. Preferir Secret Manager para segredos em producao.
+## Seguranca operacional
+
+- Nao versionar `APP_SECRET` nem access tokens.
+- Se houve exposicao, rotacionar imediatamente.
+- Manter segredos no Secret Manager.

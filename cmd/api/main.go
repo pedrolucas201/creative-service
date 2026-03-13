@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"creative-service/internal/auth"
+	"creative-service/internal/automation"
 	"creative-service/internal/bm"
 	"creative-service/internal/config"
 	"creative-service/internal/httpapi"
@@ -165,16 +166,42 @@ func main() {
 		log.Println("Firebase auth disabled (AUTH_REQUIRED=false)")
 	}
 
+	var contingencyTasks *automation.ContingencyTaskQueue
+	if cfg.ContingencyTasksExecuteURL != "" {
+		tasks, err := automation.NewContingencyTaskQueue(ctx, automation.ContingencyTaskQueueConfig{
+			ProjectID:     cfg.ContingencyTasksProjectID,
+			Location:      cfg.ContingencyTasksLocation,
+			QueueID:       cfg.ContingencyTasksQueue,
+			ExecuteURL:    cfg.ContingencyTasksExecuteURL,
+			InternalToken: cfg.ContingencyInternalToken,
+		})
+		if err != nil {
+			log.Fatal("failed to create contingency cloud tasks dispatcher: ", err)
+		}
+		contingencyTasks = tasks
+		defer contingencyTasks.Close()
+		log.Println("Contingency Cloud Tasks dispatcher enabled:", cfg.ContingencyTasksQueue)
+	} else {
+		log.Println("Contingency Cloud Tasks dispatcher disabled (CONTINGENCY_TASKS_EXECUTE_URL is empty)")
+	}
+
 	h := &httpapi.Handler{
-		CreativeSync:           creativeSync,
-		Store:                  st,
-		Campaigns:              campaigns,
-		AdSets:                 adsets,
-		Ads:                    ads,
-		BM:                     bmService,
-		UserManager:            userManager,
-		MetaWebhookVerifyToken: cfg.MetaWebhookVerifyToken,
-		MetaWebhookAppSecret:   cfg.MetaWebhookAppSecret,
+		CreativeSync:                    creativeSync,
+		Store:                           st,
+		Campaigns:                       campaigns,
+		AdSets:                          adsets,
+		Ads:                             ads,
+		BM:                              bmService,
+		UserManager:                     userManager,
+		MetaWebhookVerifyToken:          cfg.MetaWebhookVerifyToken,
+		MetaWebhookAppSecret:            cfg.MetaWebhookAppSecret,
+		ContingencyTasks:                contingencyTasks,
+		ContingencyInternalToken:        cfg.ContingencyInternalToken,
+		ContingencyMonitorAdAccounts:    cfg.ContingencyMonitorAdAccounts,
+		ContingencyDefaultMaxCandidates: cfg.ContingencyDefaultMaxCandidates,
+		ContingencyDefaultMaxAttempts:   cfg.ContingencyDefaultMaxAttempts,
+		ContingencyDefaultRefreshStatus: cfg.ContingencyDefaultRefreshStatus,
+		ContingencyDispatchViaTasks:     cfg.ContingencyDispatchViaTasks,
 	}
 
 	router := httpapi.NewRouter(h, httpapi.RouterOptions{
