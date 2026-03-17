@@ -441,8 +441,6 @@ func (c *Client) ListAds(ctx context.Context, adAccountID string, fields []strin
 	return out.Data, nil
 }
 
-// ======= UPDATE methods =======
-
 func (c *Client) UpdateCampaign(ctx context.Context, campaignID string, payload map[string]any) error {
 	return c.doJSON(ctx, http.MethodPost, campaignID, nil, payload, nil)
 }
@@ -455,10 +453,6 @@ func (c *Client) UpdateAd(ctx context.Context, adID string, payload map[string]a
 	return c.doJSON(ctx, http.MethodPost, adID, nil, payload, nil)
 }
 
-// ======= DELETE methods (soft delete - reversível) =======
-// Usa status=DELETED para marcar como deletado sem perder dados
-// Meta API permite reverter mudando status de volta para PAUSED
-
 func (c *Client) SoftDeleteCampaign(ctx context.Context, campaignID string) error {
 	return c.UpdateCampaign(ctx, campaignID, map[string]any{"status": "DELETED"})
 }
@@ -470,10 +464,6 @@ func (c *Client) SoftDeleteAdSet(ctx context.Context, adsetID string) error {
 func (c *Client) SoftDeleteAd(ctx context.Context, adID string) error {
 	return c.UpdateAd(ctx, adID, map[string]any{"status": "DELETED"})
 }
-
-// ======= HARD DELETE methods (permanente - irreversível) =======
-// Apenas para casos onde realmente precisa excluir permanentemente
-// Use com cuidado!
 
 func (c *Client) HardDeleteCampaign(ctx context.Context, campaignID string) error {
 	return c.doJSON(ctx, http.MethodDelete, campaignID, nil, nil, nil)

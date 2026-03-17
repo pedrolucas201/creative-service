@@ -44,7 +44,6 @@ func (s *CampaignService) CreateCampaign(ctx context.Context, in CreateCampaignI
 	}
 	defer s.Sem.Release()
 
-	// Buscar ad account pelo ID (act_123456789)
 	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
 	if err != nil {
 		return CreateCampaignOutput{}, fmt.Errorf("get ad account: %w", err)
@@ -187,13 +186,11 @@ func (s *CampaignService) ListCampaigns(ctx context.Context, in ListCampaignsInp
 	return ListCampaignsOutput{Campaigns: campaigns}, nil
 }
 
-// ======= UPDATE Campaign =======
-
 type UpdateCampaignInput struct {
-	AdAccountID string // necessário para resolver token
+	AdAccountID string
 	CampaignID  string
-	Name        *string // opcional
-	Status      *string // opcional (ACTIVE, PAUSED, DELETED)
+	Name        *string
+	Status      *string
 }
 
 func (s *CampaignService) UpdateCampaign(ctx context.Context, in UpdateCampaignInput) error {
@@ -234,10 +231,8 @@ func (s *CampaignService) UpdateCampaign(ctx context.Context, in UpdateCampaignI
 	return mc.UpdateCampaign(ctx, in.CampaignID, payload)
 }
 
-// ======= DELETE Campaign (soft delete) =======
-
 type DeleteCampaignInput struct {
-	AdAccountID string // necessário para resolver token
+	AdAccountID string
 	CampaignID  string
 }
 

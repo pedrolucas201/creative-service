@@ -29,10 +29,6 @@ type MultiResolver struct {
 	SM  *SMResolver
 }
 
-// Regras:
-// - "ENV:XXX" => env
-// - "SM:xxx"  => secret manager
-// - sem prefixo => assume secret manager (compat com o que você salvou no JSON)
 func (r MultiResolver) Resolve(tokenRef string) (string, error) {
 	if strings.HasPrefix(tokenRef, "ENV:") {
 		return r.Env.Resolve(tokenRef)

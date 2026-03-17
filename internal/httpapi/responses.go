@@ -14,7 +14,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 type errorResponse struct {
-	Error       string `json:"error"` // compat com clientes atuais
+	Error       string `json:"error"`
 	ErrorCode   string `json:"error_code"`
 	UserMessage string `json:"user_message"`
 }

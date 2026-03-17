@@ -26,7 +26,7 @@ type AdService struct {
 }
 
 type CreateAdInput struct {
-	AdAccountID string // Meta ID da ad account (act_123456789)
+	AdAccountID string
 	AdSetID     string
 	CreativeID  string
 	Name        string
@@ -43,7 +43,6 @@ func (s *AdService) CreateAd(ctx context.Context, in CreateAdInput) (CreateAdOut
 	}
 	defer s.Sem.Release()
 
-	// Buscar ad account pelo ID (act_123456789)
 	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
 	if err != nil {
 		return CreateAdOutput{}, fmt.Errorf("get ad account: %w", err)
@@ -253,13 +252,11 @@ func (s *AdService) ListAds(ctx context.Context, in ListAdsInput) (ListAdsOutput
 	return ListAdsOutput{Ads: ads}, nil
 }
 
-// ======= UPDATE Ad =======
-
 type UpdateAdInput struct {
-	AdAccountID string // necessário para resolver token
+	AdAccountID string
 	AdID        string
-	Name        *string // opcional
-	Status      *string // opcional (ACTIVE, PAUSED, DELETED)
+	Name        *string
+	Status      *string
 }
 
 func (s *AdService) UpdateAd(ctx context.Context, in UpdateAdInput) error {
@@ -300,10 +297,8 @@ func (s *AdService) UpdateAd(ctx context.Context, in UpdateAdInput) error {
 	return mc.UpdateAd(ctx, in.AdID, payload)
 }
 
-// ======= DELETE Ad (soft delete) =======
-
 type DeleteAdInput struct {
-	AdAccountID string // necessário para resolver token
+	AdAccountID string
 	AdID        string
 }
 

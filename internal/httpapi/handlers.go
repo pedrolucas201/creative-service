@@ -378,7 +378,6 @@ func (h *Handler) CreateManagedUser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetBMConfig implements [Handlers].
 func (h *Handler) GetBMConfig(w http.ResponseWriter, r *http.Request) {
 	bmUUID := chi.URLParam(r, "bm_uuid")
 	if !h.requireBMAccessWithRoles(w, r, bmUUID, bmConfigReadRoles) {
@@ -750,7 +749,6 @@ func (h *Handler) GetCreative(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, creative)
 }
 
-// ListAdAccountsByClient lista todas as ad accounts de um cliente
 func (h *Handler) ListAdAccountsByClient(w http.ResponseWriter, r *http.Request) {
 	clientUUID := chi.URLParam(r, "client_uuid")
 	if clientUUID == "" {
@@ -780,7 +778,6 @@ func (h *Handler) ListAdAccountsByClient(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// SoftDeleteCreative marca um creative como deletado (soft delete)
 func (h *Handler) SoftDeleteCreative(w http.ResponseWriter, r *http.Request) {
 	creativeID := chi.URLParam(r, "creative_id")
 	if creativeID == "" {
@@ -1061,8 +1058,6 @@ func (h *Handler) ListStatusCache(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, statusCode, resp)
 }
 
-// ======= UPDATE Campaign =======
-
 func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "campaign_id")
 	if campaignID == "" {
@@ -1107,8 +1102,6 @@ func (h *Handler) UpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"success": true})
 }
 
-// ======= DELETE Campaign (soft delete) =======
-
 func (h *Handler) DeleteCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "campaign_id")
 	if campaignID == "" {
@@ -1135,8 +1128,6 @@ func (h *Handler) DeleteCampaign(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, 200, map[string]any{"success": true})
 }
-
-// ======= UPDATE AdSet =======
 
 func (h *Handler) UpdateAdSet(w http.ResponseWriter, r *http.Request) {
 	adsetID := chi.URLParam(r, "adset_id")
@@ -1184,8 +1175,6 @@ func (h *Handler) UpdateAdSet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"success": true})
 }
 
-// ======= DELETE AdSet (soft delete) =======
-
 func (h *Handler) DeleteAdSet(w http.ResponseWriter, r *http.Request) {
 	adsetID := chi.URLParam(r, "adset_id")
 	if adsetID == "" {
@@ -1212,8 +1201,6 @@ func (h *Handler) DeleteAdSet(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, 200, map[string]any{"success": true})
 }
-
-// ======= UPDATE Ad =======
 
 func (h *Handler) UpdateAd(w http.ResponseWriter, r *http.Request) {
 	adID := chi.URLParam(r, "ad_id")
@@ -1258,8 +1245,6 @@ func (h *Handler) UpdateAd(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, 200, map[string]any{"success": true})
 }
-
-// ======= DELETE Ad (soft delete) =======
 
 func (h *Handler) DeleteAd(w http.ResponseWriter, r *http.Request) {
 	adID := chi.URLParam(r, "ad_id")

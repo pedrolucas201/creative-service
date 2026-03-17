@@ -27,7 +27,7 @@ type Client struct {
 }
 
 type AdAccount struct {
-	AdAccountID   string     `json:"ad_account_id"` // PK: act_123456789 (Meta ID)
+	AdAccountID   string     `json:"ad_account_id"`
 	ClientUUID    string     `json:"client_uuid"`
 	BMUUID        *string    `json:"bm_uuid,omitempty"`
 	BMID          string     `json:"bm_id,omitempty"`
@@ -125,9 +125,9 @@ func (s *Store) ListClientsByUID(ctx context.Context, uid string) ([]Client, err
 type Creative struct {
 	CreativeID  string          `json:"creative_id"`
 	ClientUUID  string          `json:"client_uuid"`
-	AdAccountID string          `json:"ad_account_id"` // FK: act_123456789
+	AdAccountID string          `json:"ad_account_id"`
 	Name        string          `json:"name"`
-	Type        string          `json:"type"` // image ou video
+	Type        string          `json:"type"`
 	URL         string          `json:"url"`
 	ThumbURL    *string         `json:"thumb_url,omitempty"`
 	Link        *string         `json:"link,omitempty"`
@@ -223,7 +223,6 @@ func (s *Store) ListCreatives(ctx context.Context, adAccountID string, typeFilte
 	return creatives, nil
 }
 
-// SoftDeleteCreative marca um creative como deletado (soft delete)
 func (s *Store) SoftDeleteCreative(ctx context.Context, creativeID string) error {
 	result, err := s.DB.Exec(ctx, `
 		UPDATE creatives 
@@ -241,9 +240,6 @@ func (s *Store) SoftDeleteCreative(ctx context.Context, creativeID string) error
 	return nil
 }
 
-// ======= Ad Accounts =======
-
-// GetAdAccount busca uma ad account pelo ad_account_id (PK)
 func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount, error) {
 	var aa AdAccount
 	err := s.DB.QueryRow(ctx, `
@@ -262,7 +258,6 @@ func (s *Store) GetAdAccount(ctx context.Context, adAccountID string) (AdAccount
 	return aa, err
 }
 
-// ListAdAccountsByClient lista todas as ad accounts de um cliente
 func (s *Store) ListAdAccountsByClient(ctx context.Context, clientUUID string) ([]AdAccount, error) {
 	rows, err := s.DB.Query(ctx, `
 		SELECT aa.ad_account_id, aa.client_uuid, aa.bm_uuid,
@@ -339,7 +334,6 @@ func (s *Store) ListAdAccountsByClientForUID(ctx context.Context, clientUUID, ui
 	return accounts, nil
 }
 
-// CreateAdAccount cria uma nova ad account
 func (s *Store) CreateAdAccount(ctx context.Context, aa AdAccount) error {
 	_, err := s.DB.Exec(ctx, `
 		INSERT INTO ad_accounts(ad_account_id, client_uuid, bm_uuid, ad_account_name, page_id, token_ref, is_active)
@@ -348,7 +342,6 @@ func (s *Store) CreateAdAccount(ctx context.Context, aa AdAccount) error {
 	return err
 }
 
-// SoftDeleteAdAccount marca uma ad account como deletada (soft delete)
 func (s *Store) SoftDeleteAdAccount(ctx context.Context, adAccountID string) error {
 	result, err := s.DB.Exec(ctx, `
 		UPDATE ad_accounts 

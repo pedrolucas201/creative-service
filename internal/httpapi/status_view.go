@@ -175,7 +175,7 @@ func extractReasonFromAny(value any) string {
 	case string:
 		return strings.TrimSpace(typed)
 	case map[string]any:
-		// Prioriza chaves mais comuns de motivo.
+
 		for _, key := range []string{"error_message", "error_summary", "message", "summary", "description", "reason", "global"} {
 			if v, ok := typed[key]; ok {
 				if reason := extractReasonFromAny(v); reason != "" {
@@ -183,7 +183,7 @@ func extractReasonFromAny(value any) string {
 				}
 			}
 		}
-		// Fallback: varre todo o mapa.
+
 		for _, v := range typed {
 			if reason := extractReasonFromAny(v); reason != "" {
 				return reason

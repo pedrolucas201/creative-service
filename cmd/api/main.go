@@ -74,7 +74,6 @@ func main() {
 		SM: smResolver,
 	}
 
-	// Criar storage client baseado no provider (S3 ou GCS)
 	var storageClient storage.StorageClient
 
 	if cfg.StorageProvider == "gcs" {
@@ -115,7 +114,7 @@ func main() {
 		Store:       st,
 		BM:          bmService,
 		Tokens:      tokens,
-		Storage:     storageClient, // Agora usa interface genérica
+		Storage:     storageClient,
 		BaseURL:     cfg.BaseURL,
 		APIVersion:  cfg.APIVersion,
 		HTTPTimeout: cfg.HTTPTimeout,

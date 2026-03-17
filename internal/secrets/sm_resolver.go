@@ -49,12 +49,8 @@ func (r *SMResolver) Close() error {
 	return r.client.Close()
 }
 
-// Resolve suporta:
-// - "SM:<secret_name>"  (projeto = r.projectID)
-// - "<secret_name>"     (fallback: assume SM)
-// - "SM:<project>/<secret_name>" (opcional, se você quiser guardar projeto no token_ref)
 func (r *SMResolver) Resolve(tokenRef string) (string, error) {
-	// normalize
+
 	ref := strings.TrimSpace(tokenRef)
 	if ref == "" {
 		return "", errors.New("empty token_ref")
@@ -67,7 +63,6 @@ func (r *SMResolver) Resolve(tokenRef string) (string, error) {
 		secretName = strings.TrimPrefix(ref, "SM:")
 	}
 
-	// opcional: permitir "project/secret"
 	if parts := strings.Split(secretName, "/"); len(parts) == 2 {
 		project = parts[0]
 		secretName = parts[1]
@@ -78,7 +73,6 @@ func (r *SMResolver) Resolve(tokenRef string) (string, error) {
 		return "", errors.New("empty secret name in token_ref")
 	}
 
-	// cache curto pra reduzir latência/custo
 	cacheKey := project + "/" + secretName
 	now := time.Now()
 

@@ -25,7 +25,7 @@ type AdSetService struct {
 }
 
 type CreateAdSetInput struct {
-	AdAccountID      string // Meta ID da ad account (act_123456789)
+	AdAccountID      string
 	CampaignID       string
 	Name             string
 	BillingEvent     string
@@ -46,7 +46,6 @@ func (s *AdSetService) CreateAdSet(ctx context.Context, in CreateAdSetInput) (Cr
 	}
 	defer s.Sem.Release()
 
-	// Buscar ad account pelo ID (act_123456789)
 	adAccount, err := s.Store.GetAdAccount(ctx, in.AdAccountID)
 	if err != nil {
 		return CreateAdSetOutput{}, fmt.Errorf("get ad account: %w", err)
@@ -199,14 +198,12 @@ func (s *AdSetService) ListAdSets(ctx context.Context, in ListAdSetsInput) (List
 	return ListAdSetsOutput{AdSets: adsets}, nil
 }
 
-// ======= UPDATE AdSet =======
-
 type UpdateAdSetInput struct {
-	AdAccountID string // necessário para resolver token
+	AdAccountID string
 	AdSetID     string
-	Name        *string // opcional
-	Status      *string // opcional (ACTIVE, PAUSED, DELETED)
-	DailyBudget *int    // opcional
+	Name        *string
+	Status      *string
+	DailyBudget *int
 }
 
 func (s *AdSetService) UpdateAdSet(ctx context.Context, in UpdateAdSetInput) error {
@@ -250,10 +247,8 @@ func (s *AdSetService) UpdateAdSet(ctx context.Context, in UpdateAdSetInput) err
 	return mc.UpdateAdSet(ctx, in.AdSetID, payload)
 }
 
-// ======= DELETE AdSet (soft delete) =======
-
 type DeleteAdSetInput struct {
-	AdAccountID string // necessário para resolver token
+	AdAccountID string
 	AdSetID     string
 }
 

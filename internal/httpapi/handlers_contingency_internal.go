@@ -292,8 +292,6 @@ func (h *Handler) InternalContingencyExecute(w http.ResponseWriter, r *http.Requ
 	recorder := newMemoryResponseWriter()
 	h.executeContingencyIncident(recorder, r, incident, parseContingencyMaxAttempts(req.MaxAttempts))
 
-	// Em Cloud Tasks, códigos 4xx causam retry desnecessário para erros de negócio.
-	// Apenas falhas 5xx retornam erro HTTP para reprocessamento automático.
 	if recorder.status >= http.StatusInternalServerError {
 		for key, values := range recorder.header {
 			for _, value := range values {
